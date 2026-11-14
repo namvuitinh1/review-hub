@@ -12,7 +12,7 @@ const collapsed = new Set(JSON.parse(store.get('rh-collapsed') || '[]'));
 function header(right) {
   return h('header', { class: 'rh-top' },
     h('span', { class: 'rh-brand' }, 'Review', h('span', {}, 'Hub')),
-    h('span', { class: 'rh-pill dark' }, 'QUẢN LÝ'),
+    h('span', { class: 'rh-pill dark' }, 'Quản lý'),
     h('span', { class: 'rh-note rh-hide-sm', html: icon('folder', 15) + ' Drive / thư mục mẹ' }),
     h('span', { class: 'grow' }), right || null, themeToggle());
 }

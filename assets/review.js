@@ -1,5 +1,6 @@
 // Màn hình review: phát video, ghim nhận xét lên khung hình, vẽ, sửa/xoá, phiên bản.
 import { api, cfg } from './api.js';
+import { mountCompare } from './compare.js';
 import { h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store, themeToggle, animalOf, animalAvatar } from './ui.js';
 
 const COLORS = ['#FFD43B', '#D92B1F', '#1B56F8', '#FFFFFF', '#111014'];
@@ -132,19 +133,22 @@ export function mountReview(root, ctx) {
   const userChip = h('button', { class: 'rh-user', title: 'Đổi tên', onclick: async () => {
     if (ADMIN) { const n = await askName(store.get('rh-admin-name') || '', 'Tên hiển thị của bên dựng', 'rh-admin-name'); if (n) renderUser(); return; }
     const n = await askName(me().name, ctx.project.name); if (n) { renderUser(); renderList(); } } });
+  let cmpBtn = null, CMP = null;
   const top = h('header', { class: 'rh-top rv-top' },
     h('button', { class: 'rh-back', onclick: () => ctx.onBack(), 'aria-label': 'Về danh sách video', html: icon('back') }),
     h('div', { class: 'rv-title' }, h('span', { class: 'rv-proj' }, ctx.project.name), h('span', { class: 'rv-vname' }, ctx.video.name)),
     verSeg,
+    versions.length > 1 ? (cmpBtn = h('button', { class: 'rh-btn sm ghost rv-cmp-btn', 'aria-pressed': 'false', title: 'Xem 2 phiên bản cạnh nhau', onclick: () => (CMP ? closeCompare() : openCompare()), html: icon('compare', 16) + ' So sánh' })) : null,
     h('span', { class: 'grow' }),
-    ADMIN ? h('span', { class: 'rh-pill light' }, 'QUẢN LÝ') : null,
+    ADMIN ? h('span', { class: 'rh-pill light' }, 'Quản lý') : null,
     ADMIN ? h('button', { class: 'rh-btn sm light', onclick: () => copyClientLink(), html: icon('copy', 14) + ' Copy link khách' }) : null,
     viewersEl,
     themeToggle(),
     userChip);
 
   const main = h('section', { class: 'rv-main' }, tip, h('div', { class: 'rv-stagewrap' }, tools, stageBox), controls);
-  const page = h('div', { class: 'rv' + (ADMIN ? ' is-admin' : '') }, top, h('div', { class: 'rv-body' }, main, side));
+  const cmpHost = h('section', { class: 'cmp', hidden: true, 'aria-label': 'So sánh phiên bản' });
+  const page = h('div', { class: 'rv' + (ADMIN ? ' is-admin' : '') }, top, h('div', { class: 'rv-body' }, main, cmpHost, side));
   root.replaceChildren(page);
 
   /* ---------- tiện ích ---------- */
@@ -601,6 +605,7 @@ export function mountReview(root, ctx) {
   function select(id, scroll) {
     const c = S.comments.find(x => x.id === id); if (!c) return;
     if (S.draft) cancelDraft();
+    if (CMP) { S.sel = id; if (c.t != null) CMP.focus(c); renderList(); return; }
     if (c.fileId !== cur().id) { switchVersion(versions.findIndex(v => v.id === c.fileId), c.t, id); return; }
     S.sel = id;
     video.pause();
@@ -810,6 +815,41 @@ export function mountReview(root, ctx) {
     } finally { copyImgBtn.disabled = false; copyImgBtn.innerHTML = old; }
   }
 
+  /* ---------- so sánh phiên bản ---------- */
+  function openCompare() {
+    if (S.draft) cancelDraft();
+    video.pause();
+    const b = S.vi, a = S.vi > 0 ? S.vi - 1 : 1;
+    main.hidden = true; cmpHost.hidden = false; cmpBtn.setAttribute('aria-pressed', 'true');
+    CMP = mountCompare(cmpHost, {
+      versions, a, b, FPS, shapeSvg, getUrl: verUrl, onClose: closeCompare,
+      comments: (fileId) => tops().filter(c => c.fileId === fileId).map(c => (ADMIN ? c : { ...c, done: false }))
+    });
+  }
+  function closeCompare() {
+    if (!CMP) return;
+    CMP.destroy(); CMP = null;
+    cmpHost.hidden = true; main.hidden = false; cmpBtn.setAttribute('aria-pressed', 'false');
+    layout();
+  }
+  // Lấy link phát của một phiên bản: dùng lại bản đã tải trong phiên, nếu chưa có thì tải về máy một lần.
+  const inflight = new Map();
+  function verUrl(ver, onProg) {
+    const url = api.videoUrl(ver);
+    if (blobCache.has(ver.id)) return Promise.resolve(blobCache.get(ver.id));
+    if (!/^https?:/.test(url)) return Promise.resolve(url);
+    if (inflight.has(ver.id)) return inflight.get(ver.id);
+    const p = (async () => {
+      const res = await fetch(url); if (!res.ok) throw new Error('HTTP ' + res.status);
+      const total = Number(res.headers.get('content-length')) || ver.size || 0;
+      const reader = res.body.getReader(); const chunks = []; let got = 0;
+      for (; ;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; if (total && onProg) onProg(Math.floor(got / total * 100)); }
+      const obj = URL.createObjectURL(new Blob(chunks, { type: ver.mime || 'video/mp4' }));
+      blobCache.set(ver.id, obj); return obj;
+    })().finally(() => inflight.delete(ver.id));
+    inflight.set(ver.id, p); return p;
+  }
+
   /* ---------- tải video ---------- */
   // Tải cả file về máy MỘT lần rồi phát từ bộ nhớ: tua bao nhiêu cũng không gửi thêm yêu cầu lên Drive
   // (tua liên tục kiểu stream làm Google tưởng là truy cập tự động và chặn tạm thời mạng của người xem).
@@ -871,6 +911,7 @@ export function mountReview(root, ctx) {
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
     if (document.querySelector('.rh-modal')) return;
+    if (CMP) { CMP.key(e); return; }
     if (e.key === ' ') { e.preventDefault(); togglePlay(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); e.shiftKey ? seek(video.currentTime - 1) : step(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); e.shiftKey ? seek(video.currentTime + 1) : step(1); }
@@ -890,6 +931,7 @@ export function mountReview(root, ctx) {
     S.comments = list;
     if (S.sel && !list.some(c => c.id === S.sel)) S.sel = null;
     if (!busyTyping()) renderAll(); else { renderMarks(); renderOverlay(); }
+    CMP && CMP.refresh();
   });
   // Người đang xem cùng video (trong 70 giây gần nhất)
   const unpresence = api.presence(ctx.token, ctx.video.id, () => ({ name: myName(), admin: ADMIN }), (list) => {
@@ -907,6 +949,7 @@ export function mountReview(root, ctx) {
 
   return {
     destroy() {
+      CMP && CMP.destroy();
       unwatch(); unwatchNotes(); unpresence(); ro.disconnect(); cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
       if (loadCtl) loadCtl.abort();

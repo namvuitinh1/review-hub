@@ -127,14 +127,14 @@ function renderProject(token, isAdmin) {
       h('div', { class: 'vcard-thumb' },
         th ? h('img', { src: th, alt: '', loading: 'lazy', onerror: (e) => e.target.remove() }) : null,
         h('span', { class: 'vcard-fallback' }, v.name),
-        h('span', { class: 'vcard-ver' + (isNew ? ' new' : '') }, `v${v.versions.length}` + (isNew ? ' · MỚI' : ''))),
+        h('span', { class: 'vcard-ver' + (isNew ? ' new' : '') }, `v${v.versions.length}` + (isNew ? ' · mới' : ''))),
       h('div', { class: 'vcard-body' },
         h('h2', {}, v.name),
         h('p', { class: 'rh-note' }, `${v.versions.length} phiên bản · cập nhật ${ago(v.updated)}`),
         h('p', {}, !v.counts.total ? 'Chưa có nhận xét' : isAdmin ? [h('b', { class: v.counts.open ? 'red' : '' }, String(v.counts.open)), ' chưa xử lý / ', String(v.counts.total), ' nhận xét'] : `${v.counts.total} nhận xét`),
         h('span', { class: 'rh-btn ' + (isNew ? 'primary' : 'outline') }, isNew ? `Xem v${v.versions.length}` : 'Xem video')));
   });
-  app.replaceChildren(h('div', { class: 'rh-page' + (isAdmin ? ' is-admin' : '') }, header(h('div', { class: 'rh-row' }, isAdmin ? h('a', { class: 'rh-pill light', href: 'admin.html' }, '← QUẢN LÝ') : null, userChip())),
+  app.replaceChildren(h('div', { class: 'rh-page' + (isAdmin ? ' is-admin' : '') }, header(h('div', { class: 'rh-row' }, isAdmin ? h('a', { class: 'rh-pill light', href: 'admin.html' }, '← Quản lý') : null, userChip())),
     h('main', { class: 'rh-main' },
       DEMO ? demoBar() : null,
       h('p', { class: 'rh-kicker' }, `${vids.length} video trong dự án`),
