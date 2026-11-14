@@ -32,7 +32,7 @@ async function route() {
   let token = p.get('p');
   if (!token && DEMO) { go('p=demo', true); return; }
   if (current) { current.destroy(); current = null; }
-  if (!token) return renderError('Link chưa đúng', 'Anh chị kiểm tra lại đường link bên dựng gửi nhé.');
+  if (!token) return renderError('Cần link dự án', 'Mỗi dự án có một link riêng, cuối link có đoạn ?p=…. Anh chị mở đúng link bên dựng đã gửi nhé.');
 
   if (!cache || cache.token !== token) {
     app.replaceChildren(h('div', { class: 'rh-center' }, h('div', { class: 'rh-spin' }), 'Đang tải dự án…'));
