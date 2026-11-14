@@ -335,8 +335,8 @@ export function mountReview(root, ctx) {
         S.comments = S.comments.map(x => x.id === c.id ? c : x);
         toast('Đã lưu thay đổi');
       } else {
-        c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: cur().id, t: d.t, x: ax, y: ay, shapes: d.shapes, text, author: myName(), authorId: me().uid, pw });
-        S.comments.push(c);
+        c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: cur().id, n: Math.max(d.n, nextN()), t: d.t, x: ax, y: ay, shapes: d.shapes, text, author: myName(), authorId: me().uid, pw });
+        (S.comments.some(x => x.id === c.id) || S.comments.push(c));
         toast('Đã lưu nhận xét #' + c.n);
       }
       S.draft = null; hideQuick();
@@ -353,8 +353,8 @@ export function mountReview(root, ctx) {
     if (!(await ensureName())) return;
     const withTime = composer.querySelector('#rv-gen-time').checked;
     try {
-      const c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: cur().id, t: withTime ? video.currentTime : null, x: null, y: null, shapes: [], text, author: myName(), authorId: me().uid, pw });
-      S.comments.push(c); genText.value = ''; S.sel = c.id;
+      const c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: cur().id, n: nextN(), t: withTime ? video.currentTime : null, x: null, y: null, shapes: [], text, author: myName(), authorId: me().uid, pw });
+      (S.comments.some(x => x.id === c.id) || S.comments.push(c)); genText.value = ''; S.sel = c.id;
       toast('Đã gửi nhận xét #' + c.n);
       renderAll();
     } catch (err) { toast(err.message, 'err'); }
@@ -399,7 +399,7 @@ export function mountReview(root, ctx) {
     if (!(await ensureName())) return;
     try {
       const c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: parent.fileId, parentId: parent.id, t: null, x: null, y: null, shapes: [], text: text.trim(), author: myName(), authorId: me().uid, pw });
-      S.comments.push(c); S.replyTo = null; renderList();
+      (S.comments.some(x => x.id === c.id) || S.comments.push(c)); S.replyTo = null; renderList();
     } catch (err) { toast(err.message, 'err'); }
   }
   async function saveReplyEdit(r, text) {
@@ -719,24 +719,26 @@ export function mountReview(root, ctx) {
   const onResize = () => layout();
   window.addEventListener('resize', onResize);
 
-  /* ---------- tải dữ liệu ---------- */
-  async function refresh(silent) {
-    try {
-      const res = await api.comments(ctx.token, ctx.video.id);
-      S.comments = res.comments;
-      if (!S.editNote) S.notes = res.notes || {};
-      if (!S.draft && S.replyTo == null && S.editReply == null) renderAll(); else { renderMarks(); }
-    } catch (err) { if (!silent) toast(err.message, 'err'); }
-  }
-  const poll = setInterval(() => { if (document.visibilityState === 'visible') refresh(true); }, 20000);
+  /* ---------- dữ liệu realtime ---------- */
+  // Nhận xét của mọi người hiện ngay khi có thay đổi (Firebase), không cần tải lại trang.
+  const busyTyping = () => S.draft || S.replyTo != null || S.editReply != null;
+  const unwatch = api.watch(ctx.token, ctx.video.id, (list, err) => {
+    if (err) { toast('Mất kết nối nhận xét: ' + err.message, 'err'); return; }
+    S.comments = list;
+    if (S.sel && !list.some(c => c.id === S.sel)) S.sel = null;
+    if (!busyTyping()) renderAll(); else { renderMarks(); renderOverlay(); }
+  });
+  const unwatchNotes = api.watchNotes(ctx.token, (notes, err) => {
+    if (err || S.editNote) return;
+    S.notes = notes || {}; renderNote();
+  });
 
   renderUser();
   switchVersion(S.vi);
-  refresh();
 
   return {
     destroy() {
-      clearInterval(poll); ro.disconnect(); cancelAnimationFrame(raf);
+      unwatch(); unwatchNotes(); ro.disconnect(); cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
       if (loadCtl) loadCtl.abort();
       video.pause(); video.removeAttribute('src'); video.load();

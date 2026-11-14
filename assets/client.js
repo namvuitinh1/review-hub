@@ -36,7 +36,7 @@ async function route() {
 
   if (!cache || cache.token !== token) {
     app.replaceChildren(h('div', { class: 'rh-center' }, h('div', { class: 'rh-spin' }), 'Đang tải dự án…'));
-    try { const d = await api.project(token); cache = { token, ...d }; }
+    try { await api.ready(); const d = await api.project(token); cache = { token, ...d }; }
     catch (err) { return renderError('Không mở được dự án', err.message); }
   }
   document.title = cache.project.name + ' – Review Hub';

@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'sukienkynam.1@gmail.com'
+        && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    function validComment(d) {
+      return d.text is string && d.text.size() <= 4000
+        && d.shapes is string && d.shapes.size() <= 45000
+        && d.author is string && d.author.size() <= 60
+        && d.videoId is string && d.fileId is string;
+    }
+
+    // Không ai liệt kê được danh sách dự án.
+    match /projects/{token} {
+      allow read, write: if false;
+
+      match /comments/{id} {
+        // Ai có mã dự án (link khách) thì đọc được nhận xét của dự án đó.
+        allow get, list: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.token == token
+          && request.resource.data.done == false
+          && (request.resource.data.staff == false || isAdmin())
+          && validComment(request.resource.data);
+        // Người viết chỉ sửa được nội dung của chính mình; quản trị sửa được tất cả (kể cả "Đã sửa").
+        allow update: if isAdmin() || (signedIn()
+          && resource.data.authorId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'shapes', 'x', 'y', 't', 'updatedAt'])
+          && validComment(request.resource.data));
+        allow delete: if isAdmin() || (signedIn() && resource.data.authorId == request.auth.uid);
+      }
+
+      // Ghi chú phiên bản: khách đọc, chỉ quản trị viết.
+      match /notes/{fileId} {
+        allow read: if signedIn();
+        allow write: if isAdmin();
+      }
+    }
+
+    // Trang quản lý đọc nhận xét của mọi dự án để đếm.
+    match /{path=**}/comments/{id} {
+      allow read: if isAdmin();
+    }
+  }
+}

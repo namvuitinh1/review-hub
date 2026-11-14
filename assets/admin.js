@@ -20,13 +20,20 @@ function header(right) {
 function login(msg) {
   const input = h('input', { id: 'pw', type: 'password', autocomplete: 'current-password' });
   const nameIn = h('input', { id: 'adname', autocomplete: 'name', value: store.get('rh-admin-name') || 'Nam' });
+  const emailIn = h('input', { id: 'ademail', type: 'email', autocomplete: 'username', value: store.get('rh-admin-email') || (window.RH_CONFIG || {}).ADMIN_EMAIL || '' });
   app.replaceChildren(h('div', { class: 'rh-page' }, header(),
     h('main', { class: 'rh-main narrow' },
       h('h1', { class: 'rh-h1' }, 'Trang ', h('mark', {}, 'quản lý')),
-      h('form', { class: 'login', onsubmit: (e) => { e.preventDefault(); store.set('rh-admin-pw', input.value); store.set('rh-admin-name', nameIn.value.trim() || 'Bên dựng'); load(); } },
+      h('form', { class: 'login', onsubmit: async (e) => {
+        e.preventDefault();
+        try { await api.adminLogin(emailIn.value.trim(), input.value); }
+        catch (err) { return login('Đăng nhập không được: ' + (err.code || err.message)); }
+        store.set('rh-admin-pw', input.value); store.set('rh-admin-email', emailIn.value.trim()); store.set('rh-admin-name', nameIn.value.trim() || 'Bên dựng'); load();
+      } },
         msg ? h('p', { class: 'err' }, msg) : null,
         DEMO ? h('p', { class: 'rh-note' }, 'Chế độ demo: gõ mật khẩu bất kỳ.') : null,
         h('label', { for: 'adname' }, 'Tên hiển thị khi trả lời khách'), nameIn,
+        DEMO ? null : [h('label', { for: 'ademail' }, 'Email quản lý'), emailIn],
         h('label', { for: 'pw' }, 'Mật khẩu'), input,
         h('button', { class: 'rh-btn primary', type: 'submit' }, 'Vào')))));
   setTimeout(() => input.focus(), 30);
@@ -59,7 +66,7 @@ function render() {
   app.replaceChildren(h('div', { class: 'rh-page' },
     header(h('div', { class: 'rh-row' },
       h('button', { class: 'rh-btn outline', onclick: load }, 'Đồng bộ lại'),
-      h('button', { class: 'link', onclick: () => { store.del('rh-admin-pw'); login(); } }, 'Đăng xuất'))),
+      h('button', { class: 'link', onclick: async () => { store.del('rh-admin-pw'); await api.adminLogout(); login(); } }, 'Đăng xuất'))),
     h('main', { class: 'rh-main wide' },
       h('div', { class: 'ad-hero' },
         h('div', {},

@@ -21,16 +21,127 @@ async function call(action, params = {}, post = false) {
   return j;
 }
 
+/* ---------------- Firebase (nhận xét realtime) ---------------- */
+
+const FB_VER = '10.12.2';
+let fbP = null;
+function firebase() {
+  if (fbP) return fbP;
+  fbP = (async () => {
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [appM, authM, fs] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+    const app = appM.initializeApp(CFG.FIREBASE);
+    const auth = authM.getAuth(app);
+    const db = fs.getFirestore(app);
+    await new Promise(res => { const un = authM.onAuthStateChanged(auth, () => { un(); res(); }); });
+    return { auth, authM, db, fs };
+  })();
+  return fbP;
+}
+async function ensureUser() {
+  const f = await firebase();
+  if (!f.auth.currentUser) await f.authM.signInAnonymously(f.auth);
+  const u = f.auth.currentUser;
+  try { localStorage.setItem('rh-uid', u.uid); } catch { }
+  return u;
+}
+const isAdminUser = (u) => !!(u && u.email && CFG.ADMIN_EMAIL && u.email.toLowerCase() === CFG.ADMIN_EMAIL.toLowerCase());
+const fromDoc = (d) => { const x = d.data(); let shapes = []; try { shapes = JSON.parse(x.shapes || '[]'); } catch { } return { ...x, id: d.id, shapes }; };
+const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+const commentsCol = (f, token) => f.fs.collection(f.db, 'projects', token, 'comments');
+
+function countComments(list) {
+  const map = {};
+  list.forEach(c => {
+    if (c.parentId) return;
+    const m = map[c.videoId] || (map[c.videoId] = { open: 0, total: 0, last: null });
+    m.total++; if (!c.done) m.open++;
+    if (!m.last || c.updatedAt > m.last.at) m.last = { at: c.updatedAt, author: c.author };
+  });
+  return map;
+}
+
 const remote = {
-  async project(token) { return call('project', { token }); },
-  async comments(token, videoId, pw) { const j = await call('comments', { token, videoId }); return { comments: j.comments, notes: j.notes || {} }; },
-  async setNote(d) { return (await call('setNote', d, true)).note; },
-  async checkAdmin(pw) { await call('checkAdmin', { pw }); return true; },
-  async addComment(d) { return (await call('addComment', d, true)).comment; },
-  async editComment(d) { return (await call('editComment', d, true)).comment; },
-  async deleteComment(d) { return call('deleteComment', d, true); },
-  async setDone(d) { return (await call('setDone', d, true)).comment; },
-  async admin(pw) { return (await call('admin', { pw })).projects; },
+  async ready() { await ensureUser(); },
+  async project(token) {
+    const [j, f] = await Promise.all([call('project', { token }), ensureUser().then(() => firebase())]);
+    const snap = await f.fs.getDocs(commentsCol(f, token));
+    const counts = countComments(snap.docs.map(fromDoc));
+    j.videos.forEach(v => { v.counts = counts[v.id] || { open: 0, total: 0, last: null }; });
+    return j;
+  },
+  // Theo dõi realtime: gọi cb(list) mỗi khi có thay đổi. Trả về hàm huỷ theo dõi.
+  watch(token, videoId, cb) {
+    let un = null, dead = false;
+    ensureUser().then(firebase).then(f => {
+      if (dead) return;
+      const q = f.fs.query(commentsCol(f, token), f.fs.where('videoId', '==', videoId));
+      un = f.fs.onSnapshot(q, snap => cb(snap.docs.map(fromDoc)), err => cb(null, err));
+    }).catch(err => cb(null, err));
+    return () => { dead = true; un && un(); };
+  },
+  watchNotes(token, cb) {
+    let un = null, dead = false;
+    ensureUser().then(firebase).then(f => {
+      if (dead) return;
+      un = f.fs.onSnapshot(f.fs.collection(f.db, 'projects', token, 'notes'), snap => {
+        const out = {}; snap.docs.forEach(d => { out[d.id] = d.data(); }); cb(out);
+      }, err => cb(null, err));
+    }).catch(err => cb(null, err));
+    return () => { dead = true; un && un(); };
+  },
+  async addComment(d) {
+    const u = await ensureUser(); const f = await firebase(); const now = Date.now();
+    const data = { token: d.token, videoId: d.videoId, fileId: d.fileId, parentId: d.parentId || null, n: d.n || 0,
+      t: d.t ?? null, x: d.x ?? null, y: d.y ?? null, shapes: JSON.stringify(d.shapes || []), text: d.text || '',
+      author: d.author || '', authorId: u.uid, done: false, staff: isAdminUser(u), createdAt: now, updatedAt: now };
+    const ref = await f.fs.addDoc(commentsCol(f, d.token), data);
+    return { ...data, id: ref.id, shapes: d.shapes || [] };
+  },
+  async editComment(d) {
+    await ensureUser(); const f = await firebase();
+    const upd = clean({ text: d.text, shapes: d.shapes === undefined ? undefined : JSON.stringify(d.shapes), x: d.x, y: d.y, updatedAt: Date.now() });
+    const ref = f.fs.doc(f.db, 'projects', d.token, 'comments', d.id);
+    await f.fs.updateDoc(ref, upd);
+    return fromDoc(await f.fs.getDoc(ref));
+  },
+  async deleteComment(d) {
+    await ensureUser(); const f = await firebase();
+    await f.fs.deleteDoc(f.fs.doc(f.db, 'projects', d.token, 'comments', d.id));
+    return { deleted: d.id };
+  },
+  async setDone(d) {
+    const f = await firebase(); const ref = f.fs.doc(f.db, 'projects', d.token, 'comments', d.id);
+    await f.fs.updateDoc(ref, { done: !!d.done, updatedAt: Date.now() });
+    return fromDoc(await f.fs.getDoc(ref));
+  },
+  async setNote(d) {
+    const f = await firebase(); const n = { note: String(d.note || ''), updatedAt: Date.now() };
+    await f.fs.setDoc(f.fs.doc(f.db, 'projects', d.token, 'notes', d.fileId), n);
+    return { fileId: d.fileId, ...n };
+  },
+  async adminLogin(email, pw) {
+    const f = await firebase();
+    await f.authM.signInWithEmailAndPassword(f.auth, email, pw);
+    try { localStorage.setItem('rh-uid', f.auth.currentUser.uid); } catch { }
+  },
+  async adminLogout() { const f = await firebase(); await f.authM.signOut(f.auth); },
+  async checkAdmin(pw) {
+    const f = await firebase();
+    if (!isAdminUser(f.auth.currentUser)) throw new Error('Chưa đăng nhập tài khoản quản lý');
+    await call('checkAdmin', { pw }); return true;
+  },
+  async admin(pw) {
+    const f = await firebase();
+    if (!isAdminUser(f.auth.currentUser)) throw new Error('Chưa đăng nhập tài khoản quản lý');
+    const [projects, snap] = await Promise.all([call('admin', { pw }).then(j => j.projects), f.fs.getDocs(f.fs.collectionGroup(f.db, 'comments'))]);
+    const all = snap.docs.map(fromDoc);
+    projects.forEach(p => {
+      const counts = countComments(all.filter(c => c.token === p.token));
+      p.videos.forEach(v => { v.counts = counts[v.id] || { open: 0, total: 0, last: null }; });
+    });
+    return projects;
+  },
   videoUrl(v) { return `https://www.googleapis.com/drive/v3/files/${v.id}?alt=media&key=${CFG.DRIVE_API_KEY}`; },
   thumbUrl(v) { return `https://drive.google.com/thumbnail?id=${v.id}&sz=w480`; }
 };
@@ -85,7 +196,7 @@ function load() {
   try { const s = JSON.parse(localStorage.getItem(DKEY)); if (s && s.projects) return s; } catch { }
   const s = seed(); save(s); return s;
 }
-function save(s) { try { localStorage.setItem(DKEY, JSON.stringify(s)); } catch { } }
+function save(s) { try { localStorage.setItem(DKEY, JSON.stringify(s)); } catch { } setTimeout(() => typeof notify === 'function' && notify(), 0); }
 const wait = (ms = 150) => new Promise(r => setTimeout(r, ms));
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -111,7 +222,23 @@ function find(db, d) {
 }
 const isAdminPw = (pw) => !!pw;
 
+const listeners = new Set();
+function notify() { const db = load(); listeners.forEach(l => l(db)); }
+
 const demo = {
+  async ready() { },
+  watch(token, videoId, cb) {
+    const l = (db) => cb(clone(db.comments.filter(c => c.token === token && c.videoId === videoId && !c.deleted)));
+    listeners.add(l); setTimeout(() => l(load()), 60);
+    return () => listeners.delete(l);
+  },
+  watchNotes(token, cb) {
+    const l = (db) => { const out = {}; Object.entries(db.notes || {}).forEach(([k, v]) => { const [t, f] = k.split('|'); if (t === token) out[f] = v; }); cb(out); };
+    listeners.add(l); setTimeout(() => l(load()), 60);
+    return () => listeners.delete(l);
+  },
+  async adminLogin() { },
+  async adminLogout() { },
   async project(token) {
     await wait(); const db = load();
     const p = db.projects.find(x => x.token === token);
@@ -135,6 +262,7 @@ const demo = {
   async addComment(d) {
     await wait(); const db = load(); let n = 0;
     if (!d.parentId) { db.comments.forEach(c => { if (c.token === d.token && c.fileId === d.fileId && !c.parentId) n = Math.max(n, c.n || 0); }); n++; }
+    if (d.n) n = Math.max(n, d.n);
     const now = Date.now();
     const c = { id: Math.random().toString(36).slice(2), token: d.token, videoId: d.videoId, fileId: d.fileId, parentId: d.parentId || null, n, t: d.t ?? null, x: d.x ?? null, y: d.y ?? null, shapes: d.shapes || [], text: d.text || '', author: d.author, authorId: d.authorId, done: false, createdAt: now, updatedAt: now, deleted: false, staff: isAdminPw(d.pw) };
     db.comments.push(c); save(db); return clone(c);
