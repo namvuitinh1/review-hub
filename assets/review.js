@@ -488,7 +488,7 @@ export function mountReview(root, ctx) {
   });
   video.addEventListener('waiting', () => { loading.hidden = false; loading.textContent = 'Đang tải…'; });
   video.addEventListener('canplay', () => { loading.hidden = true; });
-  video.addEventListener('error', () => { loading.hidden = false; loading.textContent = 'Không phát được video. Kiểm tra file đã chia sẻ "Bất kỳ ai có đường liên kết" và API key.'; });
+  video.addEventListener('error', () => { if (!video.getAttribute('src')) return; loading.hidden = false; loading.textContent = 'Không phát được video này. Thử xuất lại file MP4 (H.264) rồi tải lên Drive.'; });
 
   // thanh tua: bấm / kéo
   let scrubbing = false;
@@ -648,6 +648,46 @@ export function mountReview(root, ctx) {
       text ? h('p', { class: 'rv-note-text' }, text) : h('p', { class: 'rv-note-text muted' }, 'Chưa có ghi chú cho bản này.'));
   }
 
+  /* ---------- tải video ---------- */
+  // Tải cả file về máy MỘT lần rồi phát từ bộ nhớ: tua bao nhiêu cũng không gửi thêm yêu cầu lên Drive
+  // (tua liên tục kiểu stream làm Google tưởng là truy cập tự động và chặn tạm thời mạng của người xem).
+  const blobCache = new Map();   // fileId -> objectURL (trong phiên này)
+  let loadCtl = null;
+  async function loadVideo(ver) {
+    if (loadCtl) loadCtl.abort();
+    const url = api.videoUrl(ver);
+    if (blobCache.has(ver.id)) { video.src = blobCache.get(ver.id); return; }
+    if (!/^https?:/.test(url)) { video.src = url; return; }   // chế độ demo: file cục bộ
+    const ctl = loadCtl = new AbortController();
+    loading.hidden = false; loading.textContent = 'Đang tải video…';
+    try {
+      const res = await fetch(url, { signal: ctl.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const total = Number(res.headers.get('content-length')) || ver.size || 0;
+      const reader = res.body.getReader();
+      const chunks = []; let got = 0, lastPaint = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length;
+        const now = performance.now();
+        if (now - lastPaint > 150) {
+          lastPaint = now;
+          const mb = (got / 1048576).toFixed(1);
+          loading.textContent = total ? `Đang tải video ${Math.floor(got / total * 100)}% (${mb} / ${(total / 1048576).toFixed(0)} MB)` : `Đang tải video… ${mb} MB`;
+        }
+      }
+      if (ctl.signal.aborted) return;
+      const obj = URL.createObjectURL(new Blob(chunks, { type: ver.mime || 'video/mp4' }));
+      blobCache.set(ver.id, obj);
+      video.src = obj;
+    } catch (err) {
+      if (ctl.signal.aborted) return;
+      loading.hidden = false;
+      loading.textContent = 'Không tải được video. Nếu vừa tua liên tục, Google có thể đang tạm chặn mạng này, đợi vài phút rồi tải lại trang.';
+    } finally { if (loadCtl === ctl) loadCtl = null; }
+  }
+
   /* ---------- phiên bản ---------- */
   function switchVersion(i, t = null, selId = null) {
     if (i < 0 || i >= versions.length) return;
@@ -657,7 +697,7 @@ export function mountReview(root, ctx) {
     loading.hidden = false; loading.textContent = 'Đang tải video…';
     const poster = api.thumbUrl(cur());
     if (poster) video.poster = poster; else video.removeAttribute('poster');
-    video.src = api.videoUrl(cur());
+    loadVideo(cur());
     if (t != null) video.addEventListener('loadedmetadata', () => seek(t), { once: true });
     ctx.onVersion && ctx.onVersion(i);
     renderAll();
@@ -698,7 +738,9 @@ export function mountReview(root, ctx) {
     destroy() {
       clearInterval(poll); ro.disconnect(); cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
+      if (loadCtl) loadCtl.abort();
       video.pause(); video.removeAttribute('src'); video.load();
+      blobCache.forEach(u => URL.revokeObjectURL(u));
     }
   };
 }

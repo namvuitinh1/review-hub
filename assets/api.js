@@ -160,7 +160,7 @@ const demo = {
     const db = load();
     return db.projects.map(p => ({ name: p.name, token: p.token, videos: withMeta(db, p) }));
   },
-  videoUrl(v) { return v.src; },
+  videoUrl(v) { return new URL(v.src, location.href).href; },
   thumbUrl(v) { return v.thumb || ''; },
   reset() { localStorage.removeItem(DKEY); localStorage.removeItem('rh-demo-v1'); }
 };
