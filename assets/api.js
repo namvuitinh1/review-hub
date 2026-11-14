@@ -144,18 +144,29 @@ const remote = {
   },
   // Báo "tôi đang xem video này" mỗi 25 giây và theo dõi những ai đang xem cùng. Trả về hàm dừng.
   presence(token, videoId, info, cb) {
-    let un = null, timer = null, dead = false, ref = null, f = null;
-    const beat = () => f && ref && f.fs.setDoc(ref, { videoId, name: info().name || '', admin: !!info().admin, at: Date.now() }).catch(() => { });
+    // Dòng "đang xem" không chứa tên; tên để riêng ở viewers/{uid}, chỉ quản trị đọc được.
+    let un = null, un2 = null, timer = null, dead = false, ref = null, f = null, lastName = null;
+    let list = [], names = {};
+    const emit = () => cb(list.map(p => ({ ...p, name: names[p.uid] || '' })));
+    const beat = () => {
+      if (!f || !ref) return;
+      f.fs.setDoc(ref, { videoId, name: '', admin: !!info().admin, at: Date.now() }).catch(() => { });
+      const n = (info().name || '').slice(0, 60);
+      if (n !== lastName) { lastName = n; f.fs.setDoc(f.fs.doc(f.db, 'projects', token, 'viewers', ref.id), { name: n, at: Date.now() }).catch(() => { }); }
+    };
     ensureUser().then(async (u) => {
       f = await firebase(); if (dead) return;
       ref = f.fs.doc(f.db, 'projects', token, 'presence', u.uid);
       beat(); timer = setInterval(() => { if (document.visibilityState === 'visible') beat(); }, 25000);
       const q = f.fs.query(f.fs.collection(f.db, 'projects', token, 'presence'), f.fs.where('videoId', '==', videoId));
-      un = f.fs.onSnapshot(q, snap => cb(snap.docs.map(d => ({ uid: d.id, ...d.data() }))), () => { });
+      un = f.fs.onSnapshot(q, snap => { list = snap.docs.map(d => ({ uid: d.id, ...d.data() })); emit(); }, () => { });
+      if (isAdminUser(u)) un2 = f.fs.onSnapshot(f.fs.collection(f.db, 'projects', token, 'viewers'), snap => {
+        names = {}; snap.docs.forEach(d => { names[d.id] = d.data().name; }); emit();
+      }, () => { });
     }).catch(() => { });
     const bye = () => { if (f && ref) f.fs.deleteDoc(ref).catch(() => { }); };
     window.addEventListener('pagehide', bye);
-    return () => { dead = true; clearInterval(timer); un && un(); bye(); window.removeEventListener('pagehide', bye); };
+    return () => { dead = true; clearInterval(timer); un && un(); un2 && un2(); bye(); window.removeEventListener('pagehide', bye); };
   },
   videoUrl(v) { return `https://www.googleapis.com/drive/v3/files/${v.id}?alt=media&key=${CFG.DRIVE_API_KEY}`; },
   thumbUrl(v) { return `https://drive.google.com/thumbnail?id=${v.id}&sz=w480`; }

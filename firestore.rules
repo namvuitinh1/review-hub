@@ -46,6 +46,14 @@ service cloud.firestore {
         allow delete: if signedIn() && request.auth.uid == uid;
       }
 
+      // Tên người đang xem: mỗi người ghi tên mình, chỉ quản trị đọc.
+      match /viewers/{uid} {
+        allow read: if isAdmin();
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['name', 'at'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+      }
+
       // Ghi chú phiên bản: khách đọc, chỉ quản trị viết.
       match /notes/{fileId} {
         allow read: if signedIn();

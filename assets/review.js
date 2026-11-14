@@ -115,10 +115,11 @@ export function mountReview(root, ctx) {
     list.forEach(p => { if (!seen.has(p.uid)) { seen.add(p.uid); uniq.push(p); } });
     if (!uniq.length) { viewersEl.hidden = true; return; }
     viewersEl.hidden = false;
-    const names = uniq.map(p => (p.uid === me().uid ? 'Bạn' : (p.name || animalOf(p.uid).name + ' ẩn danh')) + (p.admin ? ' (bên dựng)' : ''));
-    viewersEl.title = 'Đang xem: ' + names.join(', ');
+    // Chỉ quản trị thấy tên; khách chỉ thấy con vật.
+    const label = p => p.uid === me().uid ? 'Bạn' : ADMIN ? (p.name || animalOf(p.uid).name + ' ẩn danh') + (p.admin ? ' (bên dựng)' : '') : animalOf(p.uid).name;
+    viewersEl.title = 'Đang xem: ' + uniq.map(label).join(', ');
     viewersEl.replaceChildren(
-      h('div', { class: 'rv-viewers-stack', 'aria-hidden': 'true' }, uniq.slice(0, 4).map(p => animalAvatar(p.uid))),
+      h('div', { class: 'rv-viewers-stack', 'aria-hidden': 'true' }, uniq.slice(0, 4).map(p => { const a = animalAvatar(p.uid); a.title = label(p); return a; })),
       h('span', { class: 'rv-viewers-n' }, h('b', {}, String(uniq.length)), ' đang xem'));
   }
   const userChip = h('button', { class: 'rh-user', title: 'Đổi tên', onclick: async () => {
