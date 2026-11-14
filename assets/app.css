@@ -273,17 +273,6 @@ kbd { font: var(--t-label); background: var(--white); border: 1px solid var(--li
 .rv-quick.up::before { top: -8.5px; border-right: 0; border-bottom: 0; }
 .rv-quick.down::after { bottom: -8.5px; border-left: 0; border-top: 0; }
 
-/* ---------- màn mở đầu vũ trụ (assets/cosmos.js) ---------- */
-.cosmos { position: fixed; inset: 0; z-index: 1000; background: radial-gradient(circle at 50% 50%, #102766 0%, #0A0F2E 38%, #06060F 75%, #030306 100%); overflow: hidden; }
-.cosmos canvas { position: absolute; inset: 0; display: block; }
-.cosmos::after { content: ''; position: absolute; left: 50%; top: 50%; width: calc(var(--ring, 0px) * 2); height: calc(var(--ring, 0px) * 2); transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 48px 16px rgba(120,170,255,.75), inset 0 0 24px 4px rgba(255,255,255,.7); pointer-events: none; }
-.cosmos-cap { position: absolute; left: 0; right: 0; top: calc(50% + 96px); text-align: center; font: var(--t-name); color: rgba(235,240,255,.6); animation: cosmos-breathe 2.4s ease-in-out infinite; }
-@keyframes cosmos-breathe { 50% { opacity: .35; } }
-html.cosmos-on #app { opacity: 0; }
-html.cosmos-reveal #app > * { animation: rh-enter .8s cubic-bezier(.2,.7,.2,1) both; }
-@keyframes rh-enter { from { opacity: 0; transform: scale(.965); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
-@media (prefers-reduced-motion: reduce) { .cosmos { display: none; } html.cosmos-on #app { opacity: 1; } }
-
 /* ---------- ghim rơi xuống khi bấm vào video (chuyển động duy nhất của trang review) ---------- */
 .rv-pin.drop { animation: pin-drop .5s cubic-bezier(.25,1.5,.5,1) both; transform-origin: 50% 100%; }
 .rv-pin.drop span { animation: pin-ring .7s ease-out both; }
