@@ -181,11 +181,20 @@ kbd { font: 700 12px var(--sans); background: var(--white); border: 1px solid va
 .rv-composer .rv-quick-row, .rv-reply .rv-quick-row { flex-wrap: wrap; }
 .rv-hint { font-size: 12px; color: var(--mute); }
 .rv-ctrl { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 900px; align-self: center; }
-.rv-tl { position: relative; height: 30px; cursor: pointer; touch-action: none; }
-.rv-tl-track { position: absolute; left: 0; right: 0; top: 18px; height: 5px; background: var(--line); border-radius: 3px; }
-.rv-tl-prog { position: absolute; left: 0; top: 18px; height: 5px; background: var(--blue); border-radius: 3px; pointer-events: none; }
-.rv-tl-head { position: absolute; top: 12px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--blue); border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--blue); pointer-events: none; }
-.rv-tl-marks { position: absolute; inset: 0; }
+.rv-tl { --sh: 0px; position: relative; height: calc(30px + var(--sh)); cursor: pointer; touch-action: none; }
+.rv-tl.has-strip { --sh: 50px; }
+.rv-strip { position: absolute; left: 0; top: 0; width: 100%; height: calc(var(--sh) - 6px); border-radius: 6px; background: var(--line); display: block; pointer-events: none; }
+.rv-tl:not(.has-strip) .rv-strip { display: none; }
+.rv-tl-track { position: absolute; left: 0; right: 0; top: calc(18px + var(--sh)); height: 5px; background: var(--line); border-radius: 3px; }
+.rv-tl-prog { position: absolute; left: 0; top: calc(18px + var(--sh)); height: 5px; background: var(--blue); border-radius: 3px; pointer-events: none; }
+.rv-tl-head { position: absolute; top: calc(12px + var(--sh)); width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--blue); border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--blue); pointer-events: none; }
+.rv-tl-marks { position: absolute; left: 0; right: 0; bottom: 0; top: var(--sh); }
+.rv-tl-head::after { content: ''; position: absolute; left: 50%; bottom: calc(100% + 3px); width: 2px; margin-left: -1px; height: calc(var(--sh) + 6px); background: var(--blue); border-radius: 1px; box-shadow: 0 0 0 1px rgba(255,255,255,.7); opacity: 0; }
+.rv-tl.has-strip .rv-tl-head::after { opacity: 1; }
+.rv-tl-pop { position: absolute; bottom: calc(100% + 8px); transform: translateX(-50%); z-index: 30; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; background: var(--ink); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.rv-tl-pop[hidden] { display: none; }
+.rv-pop-img { display: block; border-radius: 5px; background: #000; }
+.rv-pop-time { font: 600 12px/1 Arimo, Arial, sans-serif; color: var(--paper); padding: 2px 4px 3px; font-variant-numeric: tabular-nums; }
 .rv-mark { position: absolute; top: 0; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; border: 2px solid #fff; padding: 0; background: var(--red); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .rv-mark::before { content: ''; position: absolute; inset: -8px; }
 .rv-mark.done { background: #B8BDCB; }
@@ -302,6 +311,7 @@ kbd { font: 700 12px var(--sans); background: var(--white); border: 1px solid va
 
 /* ---------- điện thoại / màn hẹp ---------- */
 @media (max-width: 900px) {
+  .rv-tl.has-strip { --sh: 40px; }
   .rh-top { padding: 10px 14px; gap: 10px; }
   .rh-hide-sm { display: none !important; }
   .rh-main { padding: 28px 16px 60px; }

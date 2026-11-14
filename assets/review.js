@@ -70,7 +70,11 @@ export function mountReview(root, ctx) {
   const tlProg = h('div', { class: 'rv-tl-prog' });
   const tlHead = h('div', { class: 'rv-tl-head' });
   const tlMarks = h('div', { class: 'rv-tl-marks' });
-  const tl = h('div', { class: 'rv-tl', role: 'slider', 'aria-label': 'Thanh tua', tabindex: '0' }, h('div', { class: 'rv-tl-track' }), tlProg, tlMarks, tlHead);
+  const stripCv = h('canvas', { class: 'rv-strip' });
+  const popCv = h('canvas', { class: 'rv-pop-img' });
+  const popTime = h('span', { class: 'rv-pop-time' });
+  const tlPop = h('div', { class: 'rv-tl-pop', hidden: true }, popCv, popTime);
+  const tl = h('div', { class: 'rv-tl', role: 'slider', 'aria-label': 'Thanh tua', tabindex: '0' }, stripCv, h('div', { class: 'rv-tl-track' }), tlProg, tlMarks, tlHead, tlPop);
   const controls = h('div', { class: 'rv-ctrl' }, tl,
     h('div', { class: 'rv-ctrl-row' },
       h('button', { class: 'rv-icon', 'aria-label': 'Lùi 1 khung hình', title: 'Lùi 1 khung (←)', onclick: () => step(-1), html: icon('prev') }),
@@ -499,7 +503,7 @@ export function mountReview(root, ctx) {
   video.addEventListener('loadedmetadata', () => {
     S.dur = video.duration; loading.hidden = true;
     if (video.currentTime === 0) { try { video.currentTime = 0.001; } catch { } }
-    layout(); tick(); renderMarks();
+    layout(); tick(); renderMarks(); buildThumbs();
   });
   video.addEventListener('waiting', () => { loading.hidden = false; loading.textContent = 'Đang tải…'; });
   video.addEventListener('canplay', () => { loading.hidden = true; });
@@ -509,8 +513,71 @@ export function mountReview(root, ctx) {
   let scrubbing = false;
   const scrubTo = (e) => { const r = tl.getBoundingClientRect(); const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); seek(f * (video.duration || 0)); };
   tl.addEventListener('pointerdown', (e) => { if (e.target.closest('.rv-mark')) return; scrubbing = true; video.pause(); tl.setPointerCapture(e.pointerId); scrubTo(e); });
-  tl.addEventListener('pointermove', (e) => { if (scrubbing) scrubTo(e); });
-  tl.addEventListener('pointerup', () => { scrubbing = false; });
+  tl.addEventListener('pointermove', (e) => { if (scrubbing) scrubTo(e); if (scrubbing || e.pointerType === 'mouse') showPop(e); });
+  tl.addEventListener('pointerup', (e) => { scrubbing = false; if (e.pointerType !== 'mouse') tlPop.hidden = true; });
+  tl.addEventListener('pointercancel', () => { scrubbing = false; tlPop.hidden = true; });
+  tl.addEventListener('pointerleave', () => { if (!scrubbing) tlPop.hidden = true; });
+
+  /* ---------- dải hình preview trên thanh tua ---------- */
+  // Lấy khung hình từ chính bản video đã tải về máy (không tốn thêm mạng), chạy ngầm bằng một thẻ video ẩn.
+  const TH = { list: [], n: 0, ar: 16 / 9, job: 0, src: '' };
+  const COARSE = matchMedia('(pointer: coarse)').matches;
+  function nearestThumb(f) {
+    if (!TH.n) return null;
+    let i = Math.min(TH.n - 1, Math.max(0, Math.floor(f * TH.n)));
+    if (TH.list[i]) return TH.list[i];
+    for (let k = 1; k < TH.n; k++) { if (TH.list[i - k]) return TH.list[i - k]; if (TH.list[i + k]) return TH.list[i + k]; }
+    return null;
+  }
+  function drawStrip() {
+    const w = tl.clientWidth, hgt = stripCv.clientHeight;
+    if (!w || !hgt || !TH.n) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    stripCv.width = Math.round(w * dpr); stripCv.height = Math.round(hgt * dpr);
+    const g = stripCv.getContext('2d'); g.clearRect(0, 0, stripCv.width, stripCv.height);
+    const tw = hgt * TH.ar * dpr, cnt = Math.max(1, Math.ceil(stripCv.width / tw));
+    for (let i = 0; i < cnt; i++) {
+      const im = nearestThumb((i + .5) * tw / stripCv.width);
+      if (!im) continue;
+      g.drawImage(im, 0, 0, im.width, im.height, Math.round(i * tw), 0, Math.ceil(tw), stripCv.height);
+    }
+  }
+  async function buildThumbs() {
+    const src = video.currentSrc || video.src, d = video.duration;
+    if (!src || !isFinite(d) || !d || TH.src === src) return;
+    const job = ++TH.job; TH.src = src;
+    TH.ar = (video.videoWidth / video.videoHeight) || 16 / 9;
+    TH.n = Math.max(8, Math.min(COARSE ? 30 : 60, Math.round(d * 2)));
+    TH.list = new Array(TH.n).fill(null);
+    tl.classList.add('has-strip');
+    const v = document.createElement('video'); v.muted = true; v.preload = 'auto'; v.playsInline = true; v.src = src;
+    try { await new Promise((ok, no) => { v.onloadeddata = ok; v.onerror = no; }); } catch { return; }
+    const H = 108, W = Math.round(H * TH.ar);
+    let lastDraw = 0;
+    for (let i = 0; i < TH.n; i++) {
+      if (job !== TH.job) break;
+      v.currentTime = Math.min(d - 0.05, (i + .5) / TH.n * d);
+      await new Promise(ok => { const t = setTimeout(ok, 1500); v.onseeked = () => { clearTimeout(t); ok(); }; });
+      if (job !== TH.job) break;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      try { c.getContext('2d').drawImage(v, 0, 0, W, H); } catch { break; }
+      TH.list[i] = c;
+      if (performance.now() - lastDraw > 250 || i === TH.n - 1) { lastDraw = performance.now(); drawStrip(); }
+      await new Promise(r => setTimeout(r, 0));
+    }
+    v.removeAttribute('src'); v.load();
+  }
+  function showPop(e) {
+    const d = video.duration; if (!d) return;
+    const r = tl.getBoundingClientRect(); const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    popTime.textContent = fmtTime(f * d);
+    const im = nearestThumb(f);
+    popCv.hidden = !im;
+    if (im) { const ph = TH.ar < 1 ? 150 : 96; popCv.width = im.width; popCv.height = im.height; popCv.style.height = ph + 'px'; popCv.style.width = Math.round(ph * TH.ar) + 'px'; popCv.getContext('2d').drawImage(im, 0, 0); }
+    tlPop.hidden = false;
+    const pw = tlPop.offsetWidth; tlPop.style.left = Math.min(r.width - pw / 2, Math.max(pw / 2, f * r.width)) + 'px';
+  }
+  new ResizeObserver(() => drawStrip()).observe(tl);
   tl.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); } if (e.key === 'ArrowRight') { e.preventDefault(); step(1); } });
 
   function renderMarks() {
@@ -712,6 +779,7 @@ export function mountReview(root, ctx) {
     loading.hidden = false; loading.textContent = 'Đang tải video…';
     const poster = api.thumbUrl(cur());
     if (poster) video.poster = poster; else video.removeAttribute('poster');
+    TH.job++; TH.src = ''; TH.n = 0; TH.list = []; tl.classList.remove('has-strip'); stripCv.getContext('2d').clearRect(0, 0, stripCv.width, stripCv.height);
     loadVideo(cur());
     if (t != null) video.addEventListener('loadedmetadata', () => seek(t), { once: true });
     ctx.onVersion && ctx.onVersion(i);
