@@ -8,6 +8,11 @@
   /* THANG CỠ CHỮ — lấy từ thang cổ điển trong "The Elements of Typographic Style" (Bringhurst):
      6 7 8 9 10 11 12 14 16 18 21 24 36 48 60 72. Web này chỉ dùng 9 nấc dưới đây, không có cỡ nào khác.
      Mỗi nấc lớn hơn nấc trước khoảng 1,14–1,5 lần nên mắt phân biệt được ngay đâu là cấp trên, cấp dưới. */
+  /* BÓNG — 3 độ cao: càng nổi lên trên càng xa nền thì bóng càng rộng và mềm (ánh sáng từ trên xuống) */
+  --sh-1: 0 1px 2px rgba(17,16,20,.06), 0 2px 6px rgba(17,16,20,.05);          /* sát nền: nút, chip, nhãn */
+  --sh-2: 0 2px 4px rgba(17,16,20,.05), 0 8px 20px -6px rgba(17,16,20,.14);     /* nổi nhẹ: thẻ, hộp công cụ, ghi chú */
+  --sh-3: 0 4px 8px rgba(17,16,20,.06), 0 24px 48px -16px rgba(17,16,20,.30);   /* bay trên trang: khung nhận xét, hộp thoại, thông báo */
+  --sh-blue: 0 2px 4px rgba(27,86,248,.18), 0 8px 18px -8px rgba(27,86,248,.55); /* nút chính màu xanh */
   --fs-12: 12px; --fs-14: 14px; --fs-16: 16px; --fs-18: 18px; --fs-21: 21px; --fs-24: 24px; --fs-36: 36px; --fs-48: 48px; --fs-72: 72px;
   /* VAI TRÒ — 2 họ chữ, mỗi họ một việc:
      Tinos (serif)  = lời con người viết + tên của sự vật: tiêu đề, tên dự án/video, nội dung nhận xét, ghi chú.
@@ -275,12 +280,10 @@ kbd { font: var(--t-label); background: var(--white); border: 1px solid var(--li
 
 /* ---------- ghim rơi xuống khi bấm vào video (chuyển động duy nhất của trang review) ---------- */
 .rv-pin.drop { animation: pin-drop .5s cubic-bezier(.25,1.5,.5,1) both; transform-origin: 50% 100%; }
-.rv-pin.drop span { animation: pin-ring .7s ease-out both; }
 @keyframes pin-drop { 0% { transform: translateY(-36px) scale(.6); opacity: 0; } 55% { opacity: 1; } 100% { transform: none; } }
-@keyframes pin-ring { 0%, 35% { box-shadow: 0 0 0 0 rgba(217,43,31,.6); } 70% { box-shadow: 0 0 0 16px rgba(217,43,31,0); } 100% { box-shadow: 0 0 0 6px rgba(217,43,31,.3); } }
 .rv-quick.pop { animation: quick-pop .28s .16s cubic-bezier(.2,.7,.2,1) both; }
 @keyframes quick-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .rv-pin.drop, .rv-pin.drop span, .rv-quick.pop { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rv-pin.drop, .rv-quick.pop { animation: none; } }
 
 /* ---------- so sánh phiên bản ---------- */
 .rv-cmp-btn[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
@@ -332,11 +335,27 @@ kbd { font: var(--t-label); background: var(--white); border: 1px solid var(--li
 .rv-viewers-n b { font-weight: 700; }
 .rv.is-admin .rv-ava-felt { box-shadow: 0 0 0 2px var(--surface-ink); }
 
+
+/* ---------- bóng (xem --sh-1/2/3 ở đầu file) ---------- */
+.rh-btn.primary { box-shadow: var(--sh-blue); }
+.rh-btn.ghost, .rh-btn.outline, .rh-btn.light, .rh-chip, .rh-back, .rh-theme, .rv-icon, .rv-speed, .rv-vers, .rv-tc, .rv-tip, .ad-ver, .rh-pill, .vcard-ver, kbd { box-shadow: var(--sh-1); }
+.rv-play { box-shadow: 0 2px 4px rgba(17,16,20,.12), 0 10px 22px -8px rgba(17,16,20,.45); }
+.rv-tool[aria-pressed="true"] { box-shadow: var(--sh-1); }
+.rv-tools, .rv-note, .rv-old-btn, .rv-c.sel, .demo-bar, .ad-thumb, .rh-ava, .rh-user .rh-ava, .rv-strip { box-shadow: var(--sh-2); }
+.rv-quick, .rh-modal-card, .rh-toast, .rv-tl-pop, .rv-loading { box-shadow: var(--sh-3); }
+.rv-mark { box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.15); }
+.rv-tl-head { box-shadow: 0 0 0 1.5px var(--blue), 0 2px 6px rgba(27,86,248,.45); }
+/* nét vẽ trên video: bóng tối mảnh để nổi trên mọi nền hình */
+.rv-ov { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.55)) drop-shadow(0 3px 6px rgba(0,0,0,.25)); }
+.rv-stage { box-shadow: 0 2px 6px rgba(17,16,20,.08), 0 30px 60px -28px rgba(27,86,248,.55); }
+.rv.is-admin .rv-top .rh-back, .rv.is-admin .rv-top .rh-theme, .rv.is-admin .rv-top .rv-vers, .rv.is-admin .rv-cmp-btn { box-shadow: none; }
+
 /* ---------- giao diện tối ---------- */
 .rh-theme { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line-2); background: transparent; color: inherit; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .is-admin .rh-theme { border-color: rgba(255,255,255,.3); color: #fff; }
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --sh-1: 0 1px 2px rgba(0,0,0,.35); --sh-2: 0 2px 4px rgba(0,0,0,.3), 0 10px 24px -8px rgba(0,0,0,.6); --sh-3: 0 4px 10px rgba(0,0,0,.35), 0 28px 56px -16px rgba(0,0,0,.75); --sh-blue: 0 8px 18px -8px rgba(59,130,249,.6);
   --ink: #F2F0F5; --ink-2: #B8B4C2; --mute: #8A8693; --line: #2A2731; --line-2: #3B3743;
   --paper: #0E0B0F; --white: #18161D; --soft: #222029; --blue: #3B82F9; --blue-d: #8DB4FF; --blue-l: rgba(59,130,249,.16);
   --red: #EE3B2E; --on-ink: #111014;

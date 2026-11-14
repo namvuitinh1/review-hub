@@ -321,14 +321,16 @@ export function mountReview(root, ctx) {
     const qw = Math.min(340, Math.max(240, br.width - 16));
     quick.style.width = qw + 'px';
     const qh = quick.offsetHeight || 150;
-    const gap = 12, headH = a.pin ? 44 : 0;
+    // Mũi tam giác của khung: hình vuông 14px xoay 45°, đặt lệch -8.5px trong viền 2px.
+    // Đỉnh mũi nằm cách mép ngoài khung: 8.5 + (14·√2 − 14)/2 − 2 ≈ 9.4px → đặt khung cách đúng chừng đó để mũi chạm đầu ghim.
+    const BORDER = 2, ARROW = 14, gap = 8.5 + (ARROW * Math.SQRT2 - ARROW) / 2 - BORDER, headH = a.pin ? 44 : 0;
     let left = Math.min(Math.max(8, px - qw / 2), br.width - qw - 8);
     let top = tipY + gap, below = true;
     const topAbove = (a.pin ? tipY - headH : sr.top - br.top + (a.yTop ?? a.y) * sr.height) - gap - qh;
     if (!isSmall() && top + qh > br.height + 40 && topAbove >= -br.top + 70) { top = topAbove; below = false; }
     quick.style.left = left + 'px'; quick.style.top = top + 'px';
     quick.classList.toggle('up', below); quick.classList.toggle('down', !below);
-    quick.style.setProperty('--ax', Math.min(Math.max(18, px - left), qw - 18) + 'px');
+    quick.style.setProperty('--ax', Math.min(Math.max(18, px - left - BORDER), qw - 18) + 'px');
   }
 
   // Điện thoại: cuộn trang để ghim lên gần mép trên, khung nhận xét ở nửa trên màn hình, bàn phím ở nửa dưới không che.
