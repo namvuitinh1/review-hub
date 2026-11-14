@@ -1,6 +1,6 @@
 // Trang quản lý: chỉ người có mật khẩu.
 import { api, DEMO } from './api.js';
-import { h, icon, ago, toast, store } from './ui.js';
+import { h, icon, ago, toast, store, themeToggle } from './ui.js';
 
 const app = document.getElementById('app');
 const base = location.href.replace(/admin\.html.*$/, '').replace(/[?#].*$/, '');
@@ -14,7 +14,7 @@ function header(right) {
     h('span', { class: 'rh-brand' }, 'Review', h('span', {}, 'Hub')),
     h('span', { class: 'rh-pill dark' }, 'QUẢN LÝ'),
     h('span', { class: 'rh-note rh-hide-sm', html: icon('folder', 15) + ' Drive / thư mục mẹ' }),
-    h('span', { class: 'grow' }), right || null);
+    h('span', { class: 'grow' }), right || null, themeToggle());
 }
 
 function login(msg) {

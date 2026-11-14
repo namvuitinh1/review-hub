@@ -40,7 +40,9 @@ export const ICONS = {
   sound: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 010 6"/>',
   mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/>',
   full: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
-  chev: '<path d="M9 6l6 6-6 6"/>'
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  moon: '<path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'
 };
 export const icon = (name, size) => svgIcon(ICONS[name] || '', size);
 
@@ -136,4 +138,25 @@ export function confirmDialog(msg, okText = 'Xoá') {
     document.addEventListener('keydown', onKey, true);
     setTimeout(() => ok.focus(), 20);
   });
+}
+
+/** Nút chuyển sáng / tối (nhớ lựa chọn trên máy). */
+export function themeToggle() {
+  const root = document.documentElement;
+  const isDark = () => root.dataset.theme === 'dark';
+  const btn = h('button', { class: 'rh-theme', type: 'button' });
+  const paint = () => {
+    btn.innerHTML = icon(isDark() ? 'sun' : 'moon', 18);
+    btn.setAttribute('aria-label', isDark() ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối');
+    btn.title = btn.getAttribute('aria-label');
+  };
+  btn.addEventListener('click', () => {
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    store.set('rh-theme', root.dataset.theme);
+    document.querySelectorAll('.rh-theme').forEach(b => b !== btn && b.dispatchEvent(new Event('rh-repaint')));
+    paint();
+  });
+  btn.addEventListener('rh-repaint', paint);
+  paint();
+  return btn;
 }

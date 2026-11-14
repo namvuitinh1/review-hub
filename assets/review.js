@@ -1,6 +1,6 @@
 // Màn hình review: phát video, ghim nhận xét lên khung hình, vẽ, sửa/xoá, phiên bản.
 import { api, cfg } from './api.js';
-import { h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store } from './ui.js';
+import { h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store, themeToggle } from './ui.js';
 
 const COLORS = ['#FFD43B', '#D92B1F', '#1B56F8', '#FFFFFF', '#111014'];
 const TOOLS = [
@@ -119,6 +119,7 @@ export function mountReview(root, ctx) {
     h('span', { class: 'grow' }),
     ADMIN ? h('span', { class: 'rh-pill light' }, 'QUẢN LÝ') : null,
     ADMIN ? h('button', { class: 'rh-btn sm light', onclick: () => copyClientLink(), html: icon('copy', 14) + ' Copy link khách' }) : null,
+    themeToggle(),
     userChip);
 
   const main = h('section', { class: 'rv-main' }, tip, h('div', { class: 'rv-stagewrap' }, tools, stageBox), controls);

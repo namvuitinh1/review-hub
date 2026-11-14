@@ -1,6 +1,6 @@
 // Trang khách: ?p=MÃ_DỰ_ÁN  → danh sách video;  &v=VIDEO&ver=SỐ → màn hình review.
 import { api, DEMO } from './api.js';
-import { h, icon, ago, initials, toast, me, askName, store, adminPw } from './ui.js';
+import { h, icon, ago, initials, toast, me, askName, store, adminPw, themeToggle } from './ui.js';
 import { mountReview } from './review.js';
 
 const app = document.getElementById('app');
@@ -77,7 +77,8 @@ function header(extra) {
     h('span', { class: 'rh-brand' }, 'Review', h('span', {}, 'Hub')),
     cache ? h('span', { class: 'rh-crumb' }, '/ ' + cache.project.name) : null,
     h('span', { class: 'grow' }),
-    extra || null);
+    extra || null,
+    themeToggle());
 }
 
 function userChip() {
