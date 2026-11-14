@@ -105,7 +105,10 @@ export function mountReview(root, ctx) {
       h('label', { class: 'rv-check' }, h('input', { type: 'checkbox', id: 'rv-gen-time', checked: true }), 'Gắn vào giây hiện tại'),
       h('span', { class: 'grow' }),
       h('button', { class: 'rh-btn primary sm', type: 'submit' }, 'Gửi')));
-  const side = h('aside', { class: 'rv-side' }, noteEl, h('div', { class: 'rv-side-head' }, countEl, ADMIN ? tabRow : null), listEl, oldEl, composer);
+  const copyTxtBtn = h('button', { class: 'rh-btn sm light', type: 'button', title: 'Copy mốc thời gian + nhận xét chưa sửa (không kèm tên)', onclick: () => copyText(), html: icon('copy', 14) + ' Copy chữ' });
+  const copyImgBtn = h('button', { class: 'rh-btn sm light', type: 'button', title: 'Copy 1 ảnh ghép các khung hình có nhận xét chưa sửa', onclick: () => copyImage(), html: icon('copy', 14) + ' Copy ảnh' });
+  const exportRow = ADMIN ? h('div', { class: 'rv-export' }, h('span', { class: 'rv-export-l' }, 'Gửi cho Claude'), copyTxtBtn, copyImgBtn) : null;
+  const side = h('aside', { class: 'rv-side' }, noteEl, h('div', { class: 'rv-side-head' }, countEl, ADMIN ? tabRow : null), exportRow, listEl, oldEl, composer);
 
   /* ---------- đầu trang ---------- */
   const verSeg = h('div', { class: 'rv-vers', role: 'group', 'aria-label': 'Chọn phiên bản' },
@@ -728,6 +731,83 @@ export function mountReview(root, ctx) {
         h('span', { class: 'grow' }),
         h('button', { class: 'link', onclick: () => { S.editNote = true; renderNote(); } }, text ? 'Sửa' : 'Viết ghi chú')),
       text ? h('p', { class: 'rv-note-text' }, text) : h('p', { class: 'rv-note-text muted' }, 'Chưa có ghi chú cho bản này.'));
+  }
+
+  /* ---------- xuất nhận xét cho Claude ---------- */
+  // Chỉ lấy nhận xét CHƯA tick "Đã sửa", không kèm tên người viết. Số #n khớp giữa phần chữ và ảnh ghép.
+  const pending = () => curTops().filter(c => !c.done);
+  function exportText() {
+    const list = pending();
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const lines = [`Nhận xét cần sửa: ${ctx.video.name} – v${S.vi + 1}` + (vw ? ` (${vw}×${vh}, dài ${fmtTime(video.duration || 0)})` : '') + ` – ${list.length} mục`];
+    if (list.some(c => c.t != null)) lines.push('Ảnh ghép đi kèm: ô #n là khung hình tại mốc đó, chấm đỏ số n là chỗ khách chỉ, nét màu là khách vẽ.');
+    list.forEach(c => {
+      const extra = (c.shapes || []).length ? ' (có hình vẽ)' : '';
+      lines.push(`#${c.n} ${c.t != null ? fmtTime(c.t) : 'Chung'} – ${c.text.trim().replace(/\s*\n\s*/g, ' / ')}${extra}`);
+      repliesOf(c.id).filter(r => !r.staff && r.text.trim()).forEach(r => lines.push(`   ↳ ${r.text.trim().replace(/\s*\n\s*/g, ' / ')}`));
+    });
+    return lines.join('\n');
+  }
+  async function copyText() {
+    if (!pending().length) { toast('Không còn nhận xét nào chưa sửa'); return; }
+    const txt = exportText();
+    try { await navigator.clipboard.writeText(txt); toast(`Đã copy ${pending().length} nhận xét`, 'ok'); }
+    catch { const ta = h('textarea', {}, txt); document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('Đã copy', 'ok'); }
+  }
+  async function buildSheet(list) {
+    const src = video.currentSrc || video.src;
+    const ar = (video.videoWidth / video.videoHeight) || 9 / 16;
+    const MAX = 1560, GAP = 8, LAB = 26;
+    let fw0 = ar < 1 ? 200 : 360, sc = 1, cols, rows, fw, fh;
+    for (; ; sc *= 0.92) {
+      fw = Math.round(fw0 * sc); fh = Math.round(fw / ar);
+      cols = Math.max(1, Math.floor((MAX - GAP) / (fw + GAP)));
+      cols = Math.min(cols, list.length); rows = Math.ceil(list.length / cols);
+      if (rows * (fh + LAB + GAP) + GAP <= MAX || sc < 0.35) break;
+    }
+    const W = cols * (fw + GAP) + GAP, H = rows * (fh + LAB + GAP) + GAP;
+    const cv = h('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+    const v = document.createElement('video'); v.muted = true; v.preload = 'auto'; v.playsInline = true; v.src = src;
+    await new Promise((ok, no) => { v.onloadeddata = ok; v.onerror = no; });
+    const stW = stageRect().width || 400, k = fw / stW;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i], x = GAP + (i % cols) * (fw + GAP), y = GAP + Math.floor(i / cols) * (fh + LAB + GAP);
+      v.currentTime = Math.min((v.duration || c.t) - 0.04, c.t + 0.001);
+      await new Promise(ok => { const t = setTimeout(ok, 2000); v.onseeked = () => { clearTimeout(t); ok(); }; });
+      g.drawImage(v, x, y, fw, fh);
+      let out = (c.shapes || []).map(sh => shapeSvg({ ...sh, w: Math.max(2, (sh.w || 4) * k) }, fw, fh)).join('');
+      if (c.x != null) {
+        const px = c.x * fw, py = c.y * fh;
+        out += `<circle cx="${px}" cy="${py}" r="11" fill="#D92B1F" stroke="#fff" stroke-width="2.5"/><text x="${px}" y="${py + 4.5}" text-anchor="middle" font-family="Arial" font-weight="700" font-size="13" fill="#fff">${c.n}</text>`;
+      }
+      if (out) {
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${fw}" height="${fh}" viewBox="0 0 ${fw} ${fh}">${out}</svg>`);
+        await img.decode().catch(() => { }); g.drawImage(img, x, y, fw, fh);
+      }
+      g.fillStyle = '#111014'; g.fillRect(x, y + fh, fw, LAB);
+      g.fillStyle = '#FFFFFF'; g.font = '700 15px Arimo, Arial, sans-serif'; g.textBaseline = 'middle';
+      g.fillText(`#${c.n}  ${fmtTime(c.t)}`, x + 8, y + fh + LAB / 2 + 1);
+    }
+    v.removeAttribute('src'); v.load();
+    return new Promise(ok => cv.toBlob(ok, 'image/png'));
+  }
+  async function copyImage() {
+    const list = pending().filter(c => c.t != null);
+    if (!list.length) { toast('Không có nhận xét chưa sửa nào gắn mốc thời gian'); return; }
+    if (!(video.currentSrc || video.src) || !video.duration) { toast('Đợi video tải xong đã'); return; }
+    const old = copyImgBtn.innerHTML; copyImgBtn.disabled = true; copyImgBtn.textContent = 'Đang tạo ảnh…';
+    const blobP = buildSheet(list);
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobP })]);
+      toast(`Đã copy ảnh ${list.length} khung hình, dán vào Claude rồi dán thêm phần chữ`, 'ok');
+    } catch {
+      try {
+        const blob = await blobP; const a = h('a', { href: URL.createObjectURL(blob), download: `nhan-xet-${ctx.video.name}-v${S.vi + 1}.png` });
+        document.body.append(a); a.click(); a.remove(); toast('Trình duyệt không cho copy ảnh, đã tải ảnh về máy');
+      } catch { toast('Không tạo được ảnh', 'err'); }
+    } finally { copyImgBtn.disabled = false; copyImgBtn.innerHTML = old; }
   }
 
   /* ---------- tải video ---------- */
