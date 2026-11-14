@@ -1,6 +1,6 @@
 // Trang quản lý: chỉ người có mật khẩu.
 import { api, DEMO } from './api.js';
-import { h, icon, ago, toast, store, themeToggle } from './ui.js';
+import { brand, h, icon, ago, toast, store, themeToggle } from './ui.js';
 
 const app = document.getElementById('app');
 const base = location.href.replace(/admin\.html.*$/, '').replace(/[?#].*$/, '');
@@ -11,7 +11,7 @@ const collapsed = new Set(JSON.parse(store.get('rh-collapsed') || '[]'));
 
 function header(right) {
   return h('header', { class: 'rh-top' },
-    h('span', { class: 'rh-brand' }, 'Review', h('span', {}, 'Hub')),
+    brand(),
     h('span', { class: 'rh-pill dark' }, 'Quản lý'),
     h('span', { class: 'rh-note rh-hide-sm', html: icon('folder', 15) + ' Drive / thư mục mẹ' }),
     h('span', { class: 'grow' }), right || null, themeToggle());
@@ -65,7 +65,7 @@ function render() {
 
   app.replaceChildren(h('div', { class: 'rh-page' },
     header(h('div', { class: 'rh-row' },
-      h('button', { class: 'rh-btn outline', onclick: load }, 'Đồng bộ lại'),
+      h('button', { class: 'rh-btn ghost', onclick: load }, 'Đồng bộ lại'),
       h('button', { class: 'link', onclick: async () => { store.del('rh-admin-pw'); await api.adminLogout(); login(); } }, 'Đăng xuất'))),
     h('main', { class: 'rh-main wide' },
       h('div', { class: 'ad-hero' },
@@ -89,7 +89,7 @@ function projectBlock(p) {
       h('span', { class: 'grow' }),
       h('span', { class: 'rh-note rh-hide-sm' }, 'Link khách: …?p=', h('b', {}, p.token)),
       h('button', { class: 'rh-btn primary', onclick: () => copy(link), html: icon('copy', 15) + ' Copy link khách' }),
-      h('a', { class: 'rh-btn outline', href: link, target: '_blank', rel: 'noopener' }, 'Xem như khách')),
+      h('a', { class: 'rh-btn ghost', href: link, target: '_blank', rel: 'noopener' }, 'Xem như khách')),
     isCol ? null : h('div', { class: 'ad-rows' }, p.videos.map(v => videoRow(p, v))));
 }
 
@@ -107,7 +107,7 @@ function videoRow(p, v) {
         `v${i + 1}` + (i === v.versions.length - 1 && v.versions.length > 1 ? ' · mới' : '')))),
     h('div', { class: 'ad-count' }, v.counts.total ? [h('b', { class: v.counts.open ? 'red' : '' }, String(v.counts.open)), ' chưa xử lý ', h('span', { class: 'mute' }, '/ ' + v.counts.total)] : h('span', { class: 'mute' }, 'Chưa có nhận xét')),
     h('div', { class: 'ad-last rh-note' }, v.counts.last ? `${v.counts.last.author} · ${ago(v.counts.last.at)}` : 'Tải lên ' + ago(last.created)),
-    h('a', { class: 'rh-btn dark', href: open(v.versions.length - 1) }, 'Mở'));
+    h('a', { class: 'rh-btn ghost', href: open(v.versions.length - 1) }, 'Mở'));
 }
 
 load();

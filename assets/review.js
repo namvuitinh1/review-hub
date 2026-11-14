@@ -81,9 +81,14 @@ export function mountReview(root, ctx) {
       h('button', { class: 'rv-icon', 'aria-label': 'Lùi 1 khung hình', title: 'Lùi 1 khung (←)', onclick: () => step(-1), html: icon('prev') }),
       playBtn,
       h('button', { class: 'rv-icon', 'aria-label': 'Tiến 1 khung hình', title: 'Tiến 1 khung (→)', onclick: () => step(1), html: icon('next') }),
-      timeEl, frameEl, h('span', { class: 'grow' }), speed, muteBtn));
+      timeEl, frameEl, h('span', { class: 'grow' }), speed, muteBtn,
+      h('button', { class: 'rv-icon rv-help', title: 'Mẹo và phím tắt', 'aria-label': 'Mẹo và phím tắt', onclick: () => { tip.hidden = !tip.hidden; layout(); } }, '?')));
 
-  const tip = h('div', { class: 'rv-tip' },
+  // Thanh mẹo tự hiện cho tới khi người xem đã 3 lần vào trang VÀ để nhận xét; sau đó thu vào nút "?".
+  const tipUsed = Number(store.get('rh-tip-used') || 0);
+  let tipCounted = false;
+  const countTip = () => { if (!tipCounted) { tipCounted = true; store.set('rh-tip-used', String(tipUsed + 1)); } };
+  const tip = h('div', { class: 'rv-tip', hidden: tipUsed >= 3 },
     h('b', {}, 'Mẹo'), h('span', {}, 'Bấm vào video → gõ nhận xét ngay tại chỗ'),
     h('span', { class: 'rv-tip-k' }, h('kbd', {}, 'Space'), ' phát / dừng'),
     h('span', { class: 'rv-tip-k' }, h('kbd', {}, '← →'), ' từng khung'),
@@ -106,8 +111,8 @@ export function mountReview(root, ctx) {
       h('label', { class: 'rv-check' }, h('input', { type: 'checkbox', id: 'rv-gen-time', checked: true }), 'Gắn vào giây hiện tại'),
       h('span', { class: 'grow' }),
       h('button', { class: 'rh-btn primary sm', type: 'submit' }, 'Gửi')));
-  const copyTxtBtn = h('button', { class: 'rh-btn sm light', type: 'button', title: 'Copy mốc thời gian + nhận xét chưa sửa (không kèm tên)', onclick: () => copyText(), html: icon('copy', 14) + ' Copy chữ' });
-  const copyImgBtn = h('button', { class: 'rh-btn sm light', type: 'button', title: 'Copy 1 ảnh ghép các khung hình có nhận xét chưa sửa', onclick: () => copyImage(), html: icon('copy', 14) + ' Copy ảnh' });
+  const copyTxtBtn = h('button', { class: 'rh-btn sm ghost', type: 'button', title: 'Copy mốc thời gian + nhận xét chưa sửa (không kèm tên)', onclick: () => copyText(), html: icon('copy', 14) + ' Copy chữ' });
+  const copyImgBtn = h('button', { class: 'rh-btn sm ghost', type: 'button', title: 'Copy 1 ảnh ghép các khung hình có nhận xét chưa sửa', onclick: () => copyImage(), html: icon('copy', 14) + ' Copy ảnh' });
   const exportRow = ADMIN ? h('div', { class: 'rv-export' }, h('span', { class: 'rv-export-l' }, 'Gửi cho Claude'), copyTxtBtn, copyImgBtn) : null;
   const side = h('aside', { class: 'rv-side' }, noteEl, h('div', { class: 'rv-side-head' }, countEl, ADMIN ? tabRow : null), exportRow, listEl, oldEl, composer);
 
@@ -239,7 +244,11 @@ export function mountReview(root, ctx) {
       pins.append(el);
     };
     vis.forEach(c => { if (c.x != null) pinEl(c.x, c.y, c.n, (ADMIN && c.done ? 'done' : 'open') + (S.sel === c.id ? ' sel' : ''), c.id); });
-    if (S.draft && S.draft.x != null) pinEl(S.draft.x, S.draft.y, S.draft.n, 'draft', null);
+    if (S.draft && S.draft.x != null) {
+      pinEl(S.draft.x, S.draft.y, S.draft.n, 'draft', null);
+      const age = performance.now() - (S.draft.dropAt || 0);
+      if (age < 700) { const el = pins.lastChild; el.classList.add('drop'); el.style.animationDelay = el.firstChild.style.animationDelay = (-age) + 'ms'; }
+    }
 
     const lab = vis.find(c => c.id === S.sel) || vis[0];
     if (lab && lab.text) { label.hidden = false; label.textContent = `#${lab.n} ${lab.text}`; }
@@ -277,7 +286,7 @@ export function mountReview(root, ctx) {
     const d = S.draft; if (!d) return;
     quickTitle.textContent = (d.editId ? `Sửa nhận xét #${d.n}` : `Nhận xét #${d.n}`) + ' · ' + fmtTime(d.t);
     quickSave.textContent = d.editId ? 'Lưu thay đổi' : 'Lưu';
-    if (quick.hidden) quickText.value = d.text || '';
+    if (quick.hidden) { quickText.value = d.text || ''; quick.classList.remove('pop'); void quick.offsetWidth; quick.classList.add('pop'); }
     quick.hidden = false;
     placeQuick();
     if (focus) {
@@ -361,6 +370,7 @@ export function mountReview(root, ctx) {
         S.comments = S.comments.map(x => x.id === c.id ? c : x);
         toast('Đã lưu thay đổi');
       } else {
+        countTip();
         c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: cur().id, n: Math.max(d.n, nextN()), t: d.t, x: ax, y: ay, shapes: d.shapes, text, author: myName(), authorId: me().uid, pw });
         (S.comments.some(x => x.id === c.id) || S.comments.push(c));
         toast('Đã lưu nhận xét #' + c.n);
@@ -379,6 +389,7 @@ export function mountReview(root, ctx) {
     if (!(await ensureName())) return;
     const withTime = composer.querySelector('#rv-gen-time').checked;
     try {
+      countTip();
       const c = await api.addComment({ token: ctx.token, videoId: ctx.video.id, fileId: cur().id, n: nextN(), t: withTime ? video.currentTime : null, x: null, y: null, shapes: [], text, author: myName(), authorId: me().uid, pw });
       (S.comments.some(x => x.id === c.id) || S.comments.push(c)); genText.value = ''; S.sel = c.id;
       toast('Đã gửi nhận xét #' + c.n);
@@ -445,7 +456,7 @@ export function mountReview(root, ctx) {
       if (!quick.hidden && d.x != null && !d.editId) {
         // đã có ghim: bấm chỗ khác thì dời ghim
       }
-      d.x = p[0]; d.y = p[1];
+      d.x = p[0]; d.y = p[1]; d.dropAt = performance.now();
       if (!quick.hidden) d.text = quickText.value;
       renderOverlay(); openQuick(true); renderList();
       return;

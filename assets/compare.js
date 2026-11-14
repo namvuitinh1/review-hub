@@ -44,7 +44,7 @@ export function mountCompare(host, o) {
   const status = h('span', { class: 'cmp-status', role: 'status' });
   const hearBtn = h('button', { class: 'rh-btn sm ghost', onclick: () => { hearB = !hearB; applyAudio(); } });
   const bar = h('div', { class: 'cmp-bar' }, playBtn, lockBtn, status, h('span', { class: 'grow' }), hearBtn,
-    h('button', { class: 'rh-btn sm dark', onclick: () => o.onClose() }, 'Thoát so sánh'));
+    h('button', { class: 'rh-btn sm ghost', onclick: () => o.onClose() }, 'Thoát so sánh'));
   host.replaceChildren(h('div', { class: 'cmp-grid' }, A.el, B.el), bar);
 
   function setVer(P, i) {

@@ -13,5 +13,5 @@ window.RH_CONFIG = {
     appId: '1:938654504321:web:c488cdcf9d00574a91c480'
   },
   FPS: 30,              // số khung hình/giây dùng cho nút ±1 khung
-  BRAND: 'Review Hub'
+  BRAND: 'tinhayOD'
 };

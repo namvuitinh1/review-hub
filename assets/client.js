@@ -1,6 +1,6 @@
 // Trang khách: ?p=MÃ_DỰ_ÁN  → danh sách video;  &v=VIDEO&ver=SỐ → màn hình review.
 import { api, DEMO } from './api.js';
-import { h, icon, ago, initials, toast, me, askName, store, adminPw, themeToggle } from './ui.js';
+import { brand, h, icon, ago, initials, toast, me, askName, store, adminPw, themeToggle } from './ui.js';
 import { mountReview } from './review.js';
 
 const app = document.getElementById('app');
@@ -39,7 +39,7 @@ async function route() {
     try { await api.ready(); const d = await api.project(token); cache = { token, ...d }; }
     catch (err) { return renderError('Không mở được dự án', err.message); }
   }
-  document.title = cache.project.name + ' – Review Hub';
+  document.title = cache.project.name + ' – tinhayOD';
 
   const admin = await isAdminMode();
   if (!me().name && !admin) {
@@ -74,7 +74,7 @@ function renderError(title, msg) {
 
 function header(extra) {
   return h('header', { class: 'rh-top' },
-    h('span', { class: 'rh-brand' }, 'Review', h('span', {}, 'Hub')),
+    brand(),
     cache ? h('span', { class: 'rh-crumb' }, '/ ' + cache.project.name) : null,
     h('span', { class: 'grow' }),
     extra || null,
@@ -132,7 +132,7 @@ function renderProject(token, isAdmin) {
         h('h2', {}, v.name),
         h('p', { class: 'rh-note' }, `${v.versions.length} phiên bản · cập nhật ${ago(v.updated)}`),
         h('p', {}, !v.counts.total ? 'Chưa có nhận xét' : isAdmin ? [h('b', { class: v.counts.open ? 'red' : '' }, String(v.counts.open)), ' chưa xử lý / ', String(v.counts.total), ' nhận xét'] : `${v.counts.total} nhận xét`),
-        h('span', { class: 'rh-btn ' + (isNew ? 'primary' : 'outline') }, isNew ? `Xem v${v.versions.length}` : 'Xem video')));
+        h('span', { class: 'rh-btn ' + (isNew ? 'primary' : 'ghost') }, isNew ? `Xem v${v.versions.length}` : 'Xem video')));
   });
   app.replaceChildren(h('div', { class: 'rh-page' + (isAdmin ? ' is-admin' : '') }, header(h('div', { class: 'rh-row' }, isAdmin ? h('a', { class: 'rh-pill light', href: 'admin.html' }, '← Quản lý') : null, userChip())),
     h('main', { class: 'rh-main' },

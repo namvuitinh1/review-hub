@@ -21,6 +21,13 @@ export function h(tag, attrs = {}, ...kids) {
 export const svgIcon = (d, size = 18, extra = '') =>
   `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
 
+// Thương hiệu: logo con cáo nỉ + chữ tinhayOD
+export function brand(tag = 'span', attrs = {}) {
+  return h(tag, { class: 'rh-brand', 'aria-label': 'tinhayOD', ...attrs },
+    h('img', { class: 'rh-logo', src: 'assets/felt/logo.png', alt: '', width: '36', height: '36' }),
+    h('span', { class: 'rh-brand-t' }, 'tinhay', h('span', {}, 'OD')));
+}
+
 export const ICONS = {
   cursor: '<path d="M5 3l14 8-6 2-2 6z"/>',
   pin: '<circle cx="12" cy="9" r="5"/><path d="M12 14v7"/>',
@@ -101,9 +108,6 @@ export function me() {
 export function setName(n) { store.set('rh-name', n.trim()); }
 export const adminPw = () => store.get('rh-admin-pw') || '';
 
-export function brand() {
-  return h('a', { class: 'rh-brand', href: '#', 'aria-label': 'Review Hub' }, 'Review', h('span', {}, 'Hub'));
-}
 
 /** Hộp hỏi tên (dùng khi đổi tên hoặc trước khi nhận xét). Trả về Promise<string|null>. */
 export function askName(current = '', projectName = '', key = 'rh-name') {
