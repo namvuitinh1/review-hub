@@ -142,6 +142,21 @@ const remote = {
     });
     return projects;
   },
+  // Báo "tôi đang xem video này" mỗi 25 giây và theo dõi những ai đang xem cùng. Trả về hàm dừng.
+  presence(token, videoId, info, cb) {
+    let un = null, timer = null, dead = false, ref = null, f = null;
+    const beat = () => f && ref && f.fs.setDoc(ref, { videoId, name: info().name || '', admin: !!info().admin, at: Date.now() }).catch(() => { });
+    ensureUser().then(async (u) => {
+      f = await firebase(); if (dead) return;
+      ref = f.fs.doc(f.db, 'projects', token, 'presence', u.uid);
+      beat(); timer = setInterval(() => { if (document.visibilityState === 'visible') beat(); }, 25000);
+      const q = f.fs.query(f.fs.collection(f.db, 'projects', token, 'presence'), f.fs.where('videoId', '==', videoId));
+      un = f.fs.onSnapshot(q, snap => cb(snap.docs.map(d => ({ uid: d.id, ...d.data() }))), () => { });
+    }).catch(() => { });
+    const bye = () => { if (f && ref) f.fs.deleteDoc(ref).catch(() => { }); };
+    window.addEventListener('pagehide', bye);
+    return () => { dead = true; clearInterval(timer); un && un(); bye(); window.removeEventListener('pagehide', bye); };
+  },
   videoUrl(v) { return `https://www.googleapis.com/drive/v3/files/${v.id}?alt=media&key=${CFG.DRIVE_API_KEY}`; },
   thumbUrl(v) { return `https://drive.google.com/thumbnail?id=${v.id}&sz=w480`; }
 };
@@ -239,6 +254,12 @@ const demo = {
   },
   async adminLogin() { },
   async adminLogout() { },
+  presence(token, videoId, info, cb) {
+    const now = Date.now();
+    const fake = token === 'demo' ? [{ uid: 'demo-hanh', name: 'Chị Hạnh', at: now }, { uid: 'demo-anon', name: '', at: now }] : [];
+    const t = setTimeout(() => cb([{ uid: localStorage.getItem('rh-uid') || 'me', name: info().name, admin: !!info().admin, at: Date.now() }, ...fake]), 300);
+    return () => clearTimeout(t);
+  },
   async project(token) {
     await wait(); const db = load();
     const p = db.projects.find(x => x.token === token);

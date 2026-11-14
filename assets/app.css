@@ -262,6 +262,15 @@ kbd { font: 700 12px var(--sans); background: var(--white); border: 1px solid va
 .rh-page.is-admin .rh-userbox .rh-ava { background: #fff; color: #111014; }
 
 
+/* ---------- người đang xem ---------- */
+.rv-viewers { display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+.rv-viewers-stack { display: flex; }
+.rv-ava-felt { width: 34px; height: 34px; border-radius: 50%; margin-left: -10px; display: inline-flex; align-items: center; justify-content: center; background: var(--soft); font: 700 13px var(--sans); box-shadow: 0 0 0 2px var(--paper); overflow: hidden; }
+.rv-ava-felt:first-child { margin-left: 0; }
+.rv-ava-felt img { width: 100%; height: 100%; display: block; }
+.rv-viewers-n b { font-size: 15px; }
+.rv.is-admin .rv-ava-felt { box-shadow: 0 0 0 2px var(--surface-ink); }
+
 /* ---------- giao diện tối ---------- */
 .rh-theme { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--line-2); background: transparent; color: inherit; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .is-admin .rh-theme { border-color: rgba(255,255,255,.3); color: #fff; }
@@ -312,6 +321,7 @@ kbd { font: 700 12px var(--sans); background: var(--white); border: 1px solid va
   .rv-vers { order: 5; width: 100%; overflow-x: auto; }
   .rv-vers button { flex: 1 0 auto; }
   .rh-user-name { display: none; }
+  .rv-viewers-n { display: none; }
   .rv-body { flex-direction: column; }
   .rv-main { padding: 10px 10px 8px; gap: 8px; }
   .rv-tip { display: none; }

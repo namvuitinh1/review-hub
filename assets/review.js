@@ -1,6 +1,6 @@
 // Màn hình review: phát video, ghim nhận xét lên khung hình, vẽ, sửa/xoá, phiên bản.
 import { api, cfg } from './api.js';
-import { h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store, themeToggle } from './ui.js';
+import { h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store, themeToggle, animalOf, animalAvatar } from './ui.js';
 
 const COLORS = ['#FFD43B', '#D92B1F', '#1B56F8', '#FFFFFF', '#111014'];
 const TOOLS = [
@@ -109,6 +109,18 @@ export function mountReview(root, ctx) {
       'aria-pressed': String(i === S.vi), title: v.name,
       onclick: () => switchVersion(i)
     }, `v${i + 1}` + (i === versions.length - 1 ? ' · mới' : ''))));
+  const viewersEl = h('div', { class: 'rv-viewers', hidden: true, role: 'status', 'aria-live': 'polite' });
+  function renderViewers(list) {
+    const uniq = []; const seen = new Set();
+    list.forEach(p => { if (!seen.has(p.uid)) { seen.add(p.uid); uniq.push(p); } });
+    if (!uniq.length) { viewersEl.hidden = true; return; }
+    viewersEl.hidden = false;
+    const names = uniq.map(p => (p.uid === me().uid ? 'Bạn' : (p.name || animalOf(p.uid).name + ' ẩn danh')) + (p.admin ? ' (bên dựng)' : ''));
+    viewersEl.title = 'Đang xem: ' + names.join(', ');
+    viewersEl.replaceChildren(
+      h('div', { class: 'rv-viewers-stack', 'aria-hidden': 'true' }, uniq.slice(0, 4).map(p => animalAvatar(p.uid))),
+      h('span', { class: 'rv-viewers-n' }, h('b', {}, String(uniq.length)), ' đang xem'));
+  }
   const userChip = h('button', { class: 'rh-user', title: 'Đổi tên', onclick: async () => {
     if (ADMIN) { const n = await askName(store.get('rh-admin-name') || '', 'Tên hiển thị của bên dựng', 'rh-admin-name'); if (n) renderUser(); return; }
     const n = await askName(me().name, ctx.project.name); if (n) { renderUser(); renderList(); } } });
@@ -119,6 +131,7 @@ export function mountReview(root, ctx) {
     h('span', { class: 'grow' }),
     ADMIN ? h('span', { class: 'rh-pill light' }, 'QUẢN LÝ') : null,
     ADMIN ? h('button', { class: 'rh-btn sm light', onclick: () => copyClientLink(), html: icon('copy', 14) + ' Copy link khách' }) : null,
+    viewersEl,
     themeToggle(),
     userChip);
 
@@ -729,6 +742,12 @@ export function mountReview(root, ctx) {
     if (S.sel && !list.some(c => c.id === S.sel)) S.sel = null;
     if (!busyTyping()) renderAll(); else { renderMarks(); renderOverlay(); }
   });
+  // Người đang xem cùng video (trong 70 giây gần nhất)
+  const unpresence = api.presence(ctx.token, ctx.video.id, () => ({ name: myName(), admin: ADMIN }), (list) => {
+    const now = Date.now();
+    const live = list.filter(p => now - (p.at || 0) < 70000);
+    renderViewers(live);
+  });
   const unwatchNotes = api.watchNotes(ctx.token, (notes, err) => {
     if (err || S.editNote) return;
     S.notes = notes || {}; renderNote();
@@ -739,7 +758,7 @@ export function mountReview(root, ctx) {
 
   return {
     destroy() {
-      unwatch(); unwatchNotes(); ro.disconnect(); cancelAnimationFrame(raf);
+      unwatch(); unwatchNotes(); unpresence(); ro.disconnect(); cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
       if (loadCtl) loadCtl.abort();
       video.pause(); video.removeAttribute('src'); video.load();

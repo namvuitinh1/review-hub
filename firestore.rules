@@ -36,6 +36,16 @@ service cloud.firestore {
         allow delete: if isAdmin() || (signedIn() && resource.data.authorId == request.auth.uid);
       }
 
+      // Ai đang xem: mỗi người chỉ ghi được dòng của chính mình.
+      match /presence/{uid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['videoId', 'name', 'admin', 'at'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60
+          && request.resource.data.videoId is string;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
       // Ghi chú phiên bản: khách đọc, chỉ quản trị viết.
       match /notes/{fileId} {
         allow read: if signedIn();

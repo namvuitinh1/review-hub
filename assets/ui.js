@@ -160,3 +160,17 @@ export function themeToggle() {
   paint();
   return btn;
 }
+
+/* ---------- avatar con vật (vải nỉ) cho người đang xem ---------- */
+export const ANIMALS = [
+  { id: 'cao', name: 'Cáo' }, { id: 'meo', name: 'Mèo' }, { id: 'gau', name: 'Gấu' }, { id: 'tho', name: 'Thỏ' },
+  { id: 'cu', name: 'Cú' }, { id: 'ech', name: 'Ếch' }, { id: 'cho', name: 'Chó' }, { id: 'gautruc', name: 'Gấu trúc' }
+];
+export function animalOf(uid) {
+  let x = 0; for (const ch of String(uid)) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
+  return ANIMALS[x % ANIMALS.length];
+}
+export function animalAvatar(uid) {
+  const a = animalOf(uid);
+  return h('span', { class: 'rv-ava-felt' }, h('img', { src: 'assets/felt/' + a.id + '.png', alt: a.name, width: '34', height: '34', onerror: (e) => { e.target.replaceWith(document.createTextNode(a.name.charAt(0))); } }));
+}
