@@ -1,7 +1,7 @@
 // Màn hình review: phát video, ghim nhận xét lên khung hình, vẽ, sửa/xoá, phiên bản.
 import { api, cfg } from './api.js';
 import { mountCompare } from './compare.js';
-import { h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store, themeToggle, animalOf, animalAvatar } from './ui.js';
+import { videoFps, fmtMeta, h, icon, fmtTime, ago, initials, toast, me, askName, adminPw, confirmDialog, store, themeToggle, animalOf, animalAvatar } from './ui.js';
 
 const COLORS = ['#FFD43B', '#D92B1F', '#1B56F8', '#FFFFFF', '#111014'];
 const TOOLS = [
@@ -50,7 +50,9 @@ export function mountReview(root, ctx) {
       h('span', { class: 'grow' }),
       h('button', { class: 'rh-btn ghost sm', onclick: () => cancelDraft() }, 'Huỷ'),
       quickSave));
-  const stageBox = h('div', { class: 'rv-stagebox' }, stage, loading, quick);
+  // Nhãn độ phân giải + fps: nằm ngay trên khung video, thẳng mép trái khung
+  const metaEl = h('div', { class: 'rv-meta', 'aria-live': 'polite' });
+  const stageBox = h('div', { class: 'rv-stagebox' }, metaEl, stage, loading, quick);
 
   const toolBtns = {};
   const colorBtns = [];
@@ -180,13 +182,17 @@ export function mountReview(root, ctx) {
   function layout() {
     const vw = video.videoWidth || 9, vh = video.videoHeight || 16;
     const box = stageBox.getBoundingClientRect();
-    let maxH = box.height, maxW = box.width;
+    const META_H = 24;   // chừa chỗ cho nhãn phía trên khung
+    let maxH = box.height - META_H, maxW = box.width;
     if (isSmall()) maxH = Math.min(window.innerHeight * 0.62, 640);
     if (maxW <= 0 || maxH <= 0) return;
     let w = maxW, hgt = w * vh / vw;
     if (hgt > maxH) { hgt = maxH; w = hgt * vw / vh; }
     stage.style.width = Math.floor(w) + 'px';
     stage.style.height = Math.floor(hgt) + 'px';
+    stage.style.marginTop = META_H + 'px';
+    metaEl.style.left = stage.offsetLeft + 'px';
+    metaEl.style.top = (stage.offsetTop - META_H) + 'px';
     renderOverlay();
     placeQuick();
   }
@@ -521,6 +527,9 @@ export function mountReview(root, ctx) {
   video.addEventListener('seeked', tick);
   video.addEventListener('timeupdate', () => { if (video.paused) tick(); });
   video.addEventListener('loadedmetadata', () => {
+    const src = video.currentSrc || video.src;
+    metaEl.textContent = fmtMeta(video);
+    videoFps(src).then(f => { if ((video.currentSrc || video.src) === src) metaEl.textContent = fmtMeta(video, f); });
     S.dur = video.duration; loading.hidden = true;
     if (video.currentTime === 0) { try { video.currentTime = 0.001; } catch { } }
     layout(); tick(); renderMarks(); buildThumbs();

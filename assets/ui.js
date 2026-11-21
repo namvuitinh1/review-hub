@@ -181,3 +181,58 @@ export function animalAvatar(uid) {
   const a = animalOf(uid);
   return h('span', { class: 'rv-ava-felt' }, h('img', { src: 'assets/felt/' + a.id + '.png', alt: a.name, width: '34', height: '34', onerror: (e) => { e.target.replaceWith(document.createTextNode(a.name.charAt(0))); } }));
 }
+
+
+/* ---------- độ phân giải + fps của video ----------
+   Trình duyệt không cho biết fps, nên đọc thẳng phần đầu mục lục (moov) của file mp4/mov:
+   fps = số khung hình ÷ thời lượng của rãnh hình. Chỉ đọc vài KB, không chép cả file. */
+const fpsCache = new Map();
+export function videoFps(url) {
+  if (!url) return Promise.resolve(null);
+  if (!fpsCache.has(url)) fpsCache.set(url, readFps(url).catch(() => null));
+  return fpsCache.get(url);
+}
+async function readFps(url) {
+  const b = await (await fetch(url)).blob();
+  const tag = (dv, o) => String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3));
+  let off = 0;
+  for (let guard = 0; off + 8 <= b.size && guard < 64; guard++) {
+    const hd = new DataView(await b.slice(off, off + 16).arrayBuffer());
+    let size = hd.getUint32(0), hdr = 8; const type = tag(hd, 4);
+    if (size === 1) { size = Number(hd.getBigUint64(8)); hdr = 16; } else if (size === 0) size = b.size - off;
+    if (size < 8) return null;
+    if (type === 'moov') return moovFps(new DataView(await b.slice(off + hdr, off + size).arrayBuffer()));
+    off += size;
+  }
+  return null;
+  function kids(dv, a, z, fn) {
+    for (let o = a; o + 8 <= z;) { let sz = dv.getUint32(o); const t = tag(dv, o + 4); let h = 8;
+      if (sz === 1) { sz = Number(dv.getBigUint64(o + 8)); h = 16; } else if (sz === 0) sz = z - o;
+      if (sz < 8) break; fn(t, o + h, o + sz); o += sz; }
+  }
+  function moovFps(dv) {
+    let fps = null;
+    kids(dv, 0, dv.byteLength, (t, a, z) => {
+      if (t !== 'trak' || fps) return;
+      let scale = 0, isVid = false, n = 0, ticks = 0;
+      const walk = (a2, z2) => kids(dv, a2, z2, (t2, b2, e2) => {
+        if (t2 === 'mdia' || t2 === 'minf' || t2 === 'stbl') walk(b2, e2);
+        else if (t2 === 'mdhd') scale = dv.getUint8(b2) === 1 ? dv.getUint32(b2 + 20) : dv.getUint32(b2 + 12);
+        else if (t2 === 'hdlr' && tag(dv, b2 + 8) === 'vide') isVid = true;   // mov có thêm hdlr trong minf, đừng ghi đè
+        else if (t2 === 'stts') { const cnt = dv.getUint32(b2 + 4); for (let i = 0; i < cnt; i++) { const c = dv.getUint32(b2 + 8 + i * 8), d = dv.getUint32(b2 + 12 + i * 8); n += c; ticks += c * d; } }
+      });
+      walk(a, z);
+      if (isVid && scale && ticks) fps = n * scale / ticks;
+    });
+    return fps;
+  }
+}
+export function fmtFps(f) {
+  if (!f) return '';
+  const r = Math.round(f);
+  return (Math.abs(f - r) < 0.02 ? String(r) : f.toFixed(2).replace('.', ',')) + ' fps';
+}
+export function fmtMeta(v, fps) {
+  if (!v.videoWidth) return '';
+  return `${v.videoWidth} × ${v.videoHeight}` + (fps ? ' · ' + fmtFps(fps) : '');
+}

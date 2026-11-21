@@ -1,7 +1,7 @@
 // So sánh 2 phiên bản cạnh nhau.
 // Mỗi bên có thanh tua riêng. Bấm "Khoá" thì hai bên chạy cùng nhau và GIỮ NGUYÊN độ lệch lúc khoá
 // (vì đổi voice / dời hiệu ứng làm 2 bản dài ngắn khác nhau, không thể ép cùng một giây).
-import { h, icon, fmtTime } from './ui.js';
+import { h, icon, fmtTime, videoFps, fmtMeta } from './ui.js';
 
 export function mountCompare(host, o) {
   // o: { versions, a, b, getUrl(ver, onProg) -> Promise<url>, comments(verId) -> [], shapeSvg, FPS, onClose }
@@ -16,7 +16,8 @@ export function mountCompare(host, o) {
     P.label = h('div', { class: 'rv-label', hidden: true });
     P.loading = h('div', { class: 'rv-loading' }, 'Đang tải video…');
     P.stage = h('div', { class: 'cmp-stage' }, P.video, P.svg, P.pins, P.label);
-    P.box = h('div', { class: 'cmp-box' }, P.stage, P.loading);
+    P.meta = h('div', { class: 'rv-meta' });
+    P.box = h('div', { class: 'cmp-box' }, P.meta, P.stage, P.loading);
     P.select = h('select', { class: 'rv-speed', 'aria-label': 'Phiên bản bên ' + (key === 'a' ? 'trái' : 'phải'), onchange: () => setVer(P, Number(P.select.value)) },
       versions.map((v, i) => h('option', { value: String(i), selected: i === idx }, `v${i + 1}` + (i === versions.length - 1 ? ' · mới' : ''))));
     P.prog = h('div', { class: 'rv-tl-prog' }); P.head = h('div', { class: 'rv-tl-head' }); P.marks = h('div', { class: 'rv-tl-marks' });
@@ -33,7 +34,11 @@ export function mountCompare(host, o) {
     P.tl.addEventListener('pointerdown', (e) => { if (e.target.closest('.rv-mark')) return; scrub = true; pauseAll(); P.tl.setPointerCapture(e.pointerId); seekSide(P, at(e)); });
     P.tl.addEventListener('pointermove', (e) => { if (scrub) seekSide(P, at(e)); });
     P.tl.addEventListener('pointerup', () => { scrub = false; });
-    P.video.addEventListener('loadedmetadata', () => { P.loading.hidden = true; layout(P); renderMarks(P); draw(P); });
+    P.video.addEventListener('loadedmetadata', () => {
+      P.loading.hidden = true; layout(P); renderMarks(P); draw(P);
+      const src = P.video.currentSrc || P.video.src; P.meta.textContent = fmtMeta(P.video);
+      videoFps(src).then(f => { if ((P.video.currentSrc || P.video.src) === src) P.meta.textContent = fmtMeta(P.video, f); });
+    });
     P.video.addEventListener('seeked', () => draw(P));
     return P;
   }
@@ -56,8 +61,10 @@ export function mountCompare(host, o) {
   function layout(P) {
     const vw = P.video.videoWidth || 9, vh = P.video.videoHeight || 16, r = P.box.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    let w = r.width, hh = w * vh / vw; if (hh > r.height) { hh = r.height; w = hh * vw / vh; }
-    P.stage.style.width = Math.floor(w) + 'px'; P.stage.style.height = Math.floor(hh) + 'px'; draw(P);
+    const MH = 24, H = r.height - MH;
+    let w = r.width, hh = w * vh / vw; if (hh > H) { hh = H; w = hh * vw / vh; }
+    P.stage.style.width = Math.floor(w) + 'px'; P.stage.style.height = Math.floor(hh) + 'px'; P.stage.style.marginTop = MH + 'px';
+    P.meta.style.left = P.stage.offsetLeft + 'px'; P.meta.style.top = (P.stage.offsetTop - MH) + 'px'; draw(P);
   }
   const ro = new ResizeObserver(() => { layout(A); layout(B); }); ro.observe(A.box); ro.observe(B.box);
 
